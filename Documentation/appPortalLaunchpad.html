@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Game Dev Hub: App Portal Launchpad</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#00d0ff",
+                        "background-light": "#f7f7f8",
+                        "background-dark": "#1a1a1f",
+                        "card-dark": "#2C2C30",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .geometric-bg {
+            background-image: radial-gradient(circle at 2px 2px, rgba(0, 208, 255, 0.05) 1px, transparent 0);
+            background-size: 32px 32px;
+        }
+        .glass-nav {
+            backdrop-filter: blur(12px);
+            background: rgba(26, 26, 31, 0.8);
+        }
+        .card-hover:hover {
+            box-shadow: 0 0 20px rgba(0, 208, 255, 0.15);
+            border-color: rgba(0, 208, 255, 0.4);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white min-h-screen selection:bg-primary/30">
+<div class="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-x-hidden geometric-bg">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-50 glass-nav border-b border-white/5 px-6 lg:px-20 py-4 flex items-center justify-between">
+<div class="flex items-center gap-10">
+<div class="flex items-center gap-3">
+<div class="size-8 bg-primary rounded-lg flex items-center justify-center text-background-dark">
+<span class="material-symbols-outlined font-bold">rocket_launch</span>
+</div>
+<h2 class="text-xl font-bold tracking-tighter uppercase">Nexus <span class="text-primary">Hub</span></h2>
+</div>
+<div class="hidden md:flex relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">search</span>
+<input class="bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2 w-80 focus:ring-1 focus:ring-primary focus:border-primary focus:bg-white/10 transition-all outline-none text-sm" placeholder="Search systems..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex gap-2">
+<button class="size-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors border border-white/5">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</button>
+<button class="size-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors border border-white/5">
+<span class="material-symbols-outlined text-xl">settings</span>
+</button>
+</div>
+<div class="flex items-center gap-3 pl-6 border-l border-white/10">
+<div class="text-right hidden sm:block">
+<p class="text-xs font-bold leading-none">V. KORSYKOV</p>
+<p class="text-[10px] text-primary leading-none mt-1 uppercase tracking-widest">Lead Dev</p>
+</div>
+<div class="relative size-10 rounded-lg overflow-hidden border border-primary/50">
+<img alt="User" class="object-cover" data-alt="Stylized avatar of a male game developer" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBcuOUSWqmPliGtSedPwFTO6853uGP5WFMP70RmHE-i0ZGZTJHvAcqmNK9rk3itxD9goEk9DindlghDIR7ZCHwOIszFE1MLlgkLyAxH7G2iOgnyJa8cZatvVbu7pyou6-hpIgRMwAFSPer3dUTMRngGJEgjM-PcqcbjRgCwZo4b-SsgiKWA8NoCwaIY6Mao7UXYdFIaDYzI6WgsTlQ5F9nxsWe504ZxVfwy4msUQIzM0MMLrWEtjxpS2wBIJwD6Xa0hABzbwGa8Asc"/>
+<div class="absolute bottom-0 right-0 size-2 bg-green-500 border border-background-dark rounded-full"></div>
+</div>
+</div>
+</div>
+</header>
+<main class="flex-1 px-6 lg:px-20 py-12 flex flex-col items-center">
+<!-- Headline Section -->
+<div class="max-w-4xl w-full text-center mb-16">
+<div class="inline-block px-3 py-1 rounded-full border border-primary/20 bg-primary/5 text-primary text-[10px] font-bold tracking-[0.2em] uppercase mb-6">
+                        System Online • Alpha 2.0
+                    </div>
+<h1 class="text-4xl md:text-6xl font-bold tracking-tight mb-4">Command Center</h1>
+<p class="text-slate-500 dark:text-slate-400 text-lg max-w-2xl mx-auto">
+                        Unified interface for the Game Dev Hub ecosystem. Select a module to initialize your development environment.
+                    </p>
+</div>
+<!-- Grid Section -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-[1200px]">
+<!-- Project Dashboard -->
+<div class="group bg-white dark:bg-card-dark border border-white/10 rounded-xl p-8 flex flex-col gap-6 card-hover transition-all duration-300">
+<div class="flex justify-between items-start">
+<div class="size-14 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl">dashboard</span>
+</div>
+<span class="text-[10px] font-bold text-slate-500 tracking-widest uppercase">ID: DH-01</span>
+</div>
+<div>
+<h3 class="text-xl font-bold mb-2 tracking-wide uppercase">Project Dashboard</h3>
+<p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">Centralized view of all active game projects, build statuses, and performance analytics.</p>
+</div>
+<button class="mt-auto w-full py-3 bg-primary text-background-dark font-bold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 group/btn">
+                            LAUNCH <span class="material-symbols-outlined text-sm group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+<!-- Ideation Lab -->
+<div class="group bg-white dark:bg-card-dark border border-white/10 rounded-xl p-8 flex flex-col gap-6 card-hover transition-all duration-300">
+<div class="flex justify-between items-start">
+<div class="size-14 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl">psychology</span>
+</div>
+<span class="text-[10px] font-bold text-slate-500 tracking-widest uppercase">ID: IL-02</span>
+</div>
+<div>
+<h3 class="text-xl font-bold mb-2 tracking-wide uppercase">Ideation Lab</h3>
+<p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">AI-assisted brainstorming, procedural lore generation, and narrative design frameworks.</p>
+</div>
+<button class="mt-auto w-full py-3 bg-primary text-background-dark font-bold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 group/btn">
+                            LAUNCH <span class="material-symbols-outlined text-sm group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+<!-- Asset Hub -->
+<div class="group bg-white dark:bg-card-dark border border-white/10 rounded-xl p-8 flex flex-col gap-6 card-hover transition-all duration-300">
+<div class="flex justify-between items-start">
+<div class="size-14 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl">inventory_2</span>
+</div>
+<span class="text-[10px] font-bold text-slate-500 tracking-widest uppercase">ID: AH-03</span>
+</div>
+<div>
+<h3 class="text-xl font-bold mb-2 tracking-wide uppercase">Asset Hub</h3>
+<p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">Unified management for 3D models, PBR textures, and spatial audio libraries across projects.</p>
+</div>
+<button class="mt-auto w-full py-3 bg-primary text-background-dark font-bold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 group/btn">
+                            LAUNCH <span class="material-symbols-outlined text-sm group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+<!-- World Builder -->
+<div class="group bg-white dark:bg-card-dark border border-white/10 rounded-xl p-8 flex flex-col gap-6 card-hover transition-all duration-300">
+<div class="flex justify-between items-start">
+<div class="size-14 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl">public</span>
+</div>
+<span class="text-[10px] font-bold text-slate-500 tracking-widest uppercase">ID: WB-04</span>
+</div>
+<div>
+<h3 class="text-xl font-bold mb-2 tracking-wide uppercase">World Builder</h3>
+<p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">Procedural terrain generator and environment detailing tools with engine-native exports.</p>
+</div>
+<button class="mt-auto w-full py-3 bg-primary text-background-dark font-bold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 group/btn">
+                            LAUNCH <span class="material-symbols-outlined text-sm group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+<!-- Engine Bridge -->
+<div class="group bg-white dark:bg-card-dark border border-white/10 rounded-xl p-8 flex flex-col gap-6 card-hover transition-all duration-300">
+<div class="flex justify-between items-start">
+<div class="size-14 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl">swap_calls</span>
+</div>
+<span class="text-[10px] font-bold text-slate-500 tracking-widest uppercase">ID: EB-05</span>
+</div>
+<div>
+<h3 class="text-xl font-bold mb-2 tracking-wide uppercase">Engine Bridge</h3>
+<p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">Real-time syncing and automated export pipeline for Unity, Unreal, and Godot engines.</p>
+</div>
+<button class="mt-auto w-full py-3 bg-primary text-background-dark font-bold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 group/btn">
+                            LAUNCH <span class="material-symbols-outlined text-sm group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+<!-- Team Nexus -->
+<div class="group bg-white dark:bg-card-dark border border-white/10 rounded-xl p-8 flex flex-col gap-6 card-hover transition-all duration-300">
+<div class="flex justify-between items-start">
+<div class="size-14 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl">hub</span>
+</div>
+<span class="text-[10px] font-bold text-slate-500 tracking-widest uppercase">ID: TN-06</span>
+</div>
+<div>
+<h3 class="text-xl font-bold mb-2 tracking-wide uppercase">Team Nexus</h3>
+<p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">Collaborative workspace, version control integration, and peer-to-peer code reviews.</p>
+</div>
+<button class="mt-auto w-full py-3 bg-primary text-background-dark font-bold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 group/btn">
+                            LAUNCH <span class="material-symbols-outlined text-sm group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+</main>
+<!-- Footer Section -->
+<footer class="mt-auto border-t border-white/5 py-10 px-6 lg:px-20 bg-black/20">
+<div class="max-w-[1200px] mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+<div class="flex gap-10">
+<a class="text-xs font-bold tracking-widest text-slate-500 hover:text-primary transition-colors uppercase" href="#">Documentation</a>
+<a class="text-xs font-bold tracking-widest text-slate-500 hover:text-primary transition-colors uppercase" href="#">API Reference</a>
+<a class="text-xs font-bold tracking-widest text-slate-500 hover:text-primary transition-colors uppercase" href="#">Dev Support</a>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-2">
+<div class="size-6 rounded-full border border-background-dark bg-slate-700 overflow-hidden">
+<img alt="User" data-alt="Small avatar of a collaborator" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDmi2g-BOnNQbvXNXzjIn5fZuklhXzTe9Oact-qnDWKobyX2D5_SgENkwzbDdiXfnl8uUhIRFSwuppG8KaBx6pca2cN04MJDmylODt2a-BN39wcWjSLKMcZuv5Zfs_mpiUzh_2OC8dKDMof0rF34Ppaej7ltmRUHWLoetdOVPv3Muvl1Tt34cmbARPKAhceidZ74QGGC4ObsngJpFL3D4L612IMjaeyNZHJO5G8ht2GkPCcirCaQGJM7G_UlejEBDVt7AT1kX7Sqru8"/>
+</div>
+<div class="size-6 rounded-full border border-background-dark bg-slate-700 overflow-hidden">
+<img alt="User" data-alt="Small avatar of another collaborator" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC168Mq1wqX88CyF3cImJA-Sgas8JQTCtYlBWoVVaIa_Nn5i9dxfYScYwF8ji7JuhBrp7QBLO_V4gNXSVH8AoE2IsEDaj8goBK49vt1woYv0JgSfivgTOx9WpqoWxVd8Q5LhkxMdCJ1KVvJMixGKdF21WtN5wWAdb59SXK6pI64ETihp23jmZrDqomfhNoTLxwotoDmwvqJHTWbooIUVeJDivqZKVuIMjVqW2_pJ64HiZjNydXWTv2wvfZwfVODuQfNOHEiMYS1KX6m"/>
+</div>
+<div class="size-6 rounded-full border border-background-dark bg-slate-700 flex items-center justify-center text-[8px] font-bold">+12</div>
+</div>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">14 Active Developers Online</p>
+</div>
+<p class="text-[10px] text-slate-500/50 uppercase tracking-tighter">© 2024 NEXUS GAME DEV ECOSYSTEM • ALL SYSTEMS NOMINAL</p>
+</div>
+</footer>
+</div>
+</div>
+</body></html>

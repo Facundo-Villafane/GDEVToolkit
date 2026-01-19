@@ -13,7 +13,9 @@
       "Bash(echo:*)",
       "Bash(\"D:\\\\Dev\\\\gamedevhub\\\\src\\\\app\\\\\\(auth\\)\\\\forgot-password\\\\page.tsx\")",
       "Bash(git remote add:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

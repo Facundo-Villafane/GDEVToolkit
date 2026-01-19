@@ -48,6 +48,8 @@ export function useAuth() {
             preferredGenres: profile.preferred_genres || [],
             onboardingCompleted: profile.onboarding_completed,
             skills: [], // Skills loaded separately
+            createdAt: profile.created_at,
+            updatedAt: profile.updated_at,
           })
         }
       }

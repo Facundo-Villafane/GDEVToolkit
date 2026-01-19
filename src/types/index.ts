@@ -14,6 +14,8 @@ export interface UserProfile {
   preferredGenres: string[]
   onboardingCompleted: boolean
   skills: UserSkill[]
+  createdAt: string
+  updatedAt?: string
 }
 
 export interface UserSkill {

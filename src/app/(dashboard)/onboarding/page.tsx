@@ -13,6 +13,7 @@ import {
   Gamepad2,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Check,
   Loader2,
 } from 'lucide-react'
@@ -26,11 +27,12 @@ import { Progress } from '@/components/ui/progress'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
-import { GAME_ENGINES } from '@/lib/constants/engines'
+import { GAME_ENGINES, type GameEngineKey } from '@/lib/constants/engines'
 import { GAME_GENRES } from '@/lib/constants/genres'
 import { SKILL_CATEGORIES, SKILL_LEVELS, type SkillLevelKey } from '@/lib/constants/skills'
 import type { UpdateTables, InsertTables } from '@/types/database'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 const TOTAL_STEPS = 4
 
@@ -42,19 +44,12 @@ interface SkillSelection {
 }
 
 interface OnboardingData {
-  // Step 1: Basic Info
   displayName: string
   bio: string
   avatarUrl: string
-
-  // Step 2: Preferences
-  preferredEngine: string
+  preferredEngines: string[]
   preferredGenres: string[]
-
-  // Step 3: Skills
   skills: SkillSelection[]
-
-  // Step 4: Confirmation
 }
 
 const categoryIcons = {
@@ -73,17 +68,17 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [availableSkills, setAvailableSkills] = useState<Array<{ id: string; name: string; category: string }>>([])
+  const [expandedCategories, setExpandedCategories] = useState<string[]>(['programming', 'art'])
 
   const [data, setData] = useState<OnboardingData>({
     displayName: '',
     bio: '',
     avatarUrl: '',
-    preferredEngine: '',
+    preferredEngines: [],
     preferredGenres: [],
     skills: [],
   })
 
-  // Fetch available skills from DB
   useEffect(() => {
     const fetchSkills = async () => {
       const { data: skills } = await supabase
@@ -92,13 +87,12 @@ export default function OnboardingPage() {
         .order('category')
 
       if (skills) {
-        setAvailableSkills(skills)
+        setAvailableSkills(skills as { id: string; name: string; category: string }[])
       }
     }
     fetchSkills()
   }, [supabase])
 
-  // Pre-fill with user data if available
   useEffect(() => {
     if (user?.user_metadata) {
       setData(prev => ({
@@ -123,13 +117,30 @@ export default function OnboardingPage() {
     }
   }
 
+  const toggleEngine = (engine: string) => {
+    setData(prev => ({
+      ...prev,
+      preferredEngines: prev.preferredEngines.includes(engine)
+        ? prev.preferredEngines.filter(e => e !== engine)
+        : [...prev.preferredEngines, engine].slice(0, 5),
+    }))
+  }
+
   const toggleGenre = (genre: string) => {
     setData(prev => ({
       ...prev,
       preferredGenres: prev.preferredGenres.includes(genre)
         ? prev.preferredGenres.filter(g => g !== genre)
-        : [...prev.preferredGenres, genre].slice(0, 5), // Max 5 genres
+        : [...prev.preferredGenres, genre].slice(0, 8),
     }))
+  }
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev =>
+      prev.includes(category)
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+    )
   }
 
   const toggleSkill = (skill: { id: string; name: string; category: string }) => {
@@ -147,7 +158,7 @@ export default function OnboardingPage() {
           skillId: skill.id,
           name: skill.name,
           category: skill.category,
-          level: 'novice' as SkillLevelKey
+          level: 'intermediate' as SkillLevelKey
         }],
       }
     })
@@ -171,12 +182,11 @@ export default function OnboardingPage() {
     setIsLoading(true)
 
     try {
-      // Update profile
       const profileUpdate: UpdateTables<'profiles'> = {
         display_name: data.displayName || null,
         bio: data.bio || null,
         avatar_url: data.avatarUrl || null,
-        preferred_engine: data.preferredEngine || null,
+        preferred_engine: data.preferredEngines[0] || null,
         preferred_genres: data.preferredGenres.length > 0 ? data.preferredGenres : null,
         onboarding_completed: true,
         updated_at: new Date().toISOString(),
@@ -189,7 +199,6 @@ export default function OnboardingPage() {
 
       if (profileError) throw profileError
 
-      // Insert user skills
       if (data.skills.length > 0) {
         const skillsToInsert: InsertTables<'user_skills'>[] = data.skills.map(skill => ({
           user_id: user.id,
@@ -204,17 +213,22 @@ export default function OnboardingPage() {
         if (skillsError) throw skillsError
       }
 
-      // Add XP for completing onboarding
-      // Note: RPC function types not defined in Database type yet
+      // Calculate XP based on profile completeness
+      let xpAmount = 50 // Base XP
+      if (data.bio) xpAmount += 10
+      if (data.preferredEngines.length > 0) xpAmount += 15
+      if (data.preferredGenres.length > 0) xpAmount += 15
+      if (data.skills.length > 0) xpAmount += 10 + (data.skills.length * 5)
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any).rpc('add_user_xp', {
         p_user_id: user.id,
-        p_amount: 100,
+        p_amount: xpAmount,
         p_reason: 'Perfil completado durante onboarding',
         p_source_type: 'profile_completed',
       })
 
-      toast.success('Perfil completado! +100 XP')
+      toast.success(`Perfil completado! +${xpAmount} XP`)
       router.push('/dashboard')
     } catch (error) {
       console.error('Onboarding error:', error)
@@ -228,25 +242,29 @@ export default function OnboardingPage() {
     switch (currentStep) {
       case 1:
         return data.displayName.trim().length >= 2
-      case 2:
-        return true // Optional step
-      case 3:
-        return true // Optional step
-      case 4:
-        return true
       default:
-        return false
+        return true
     }
+  }
+
+  // Calculate XP preview
+  const calculateXpPreview = () => {
+    let xp = 50
+    if (data.bio) xp += 10
+    if (data.preferredEngines.length > 0) xp += 15
+    if (data.preferredGenres.length > 0) xp += 15
+    if (data.skills.length > 0) xp += 10 + (data.skills.length * 5)
+    return xp
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 flex flex-col">
       {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur">
+      <header className="border-b bg-background/95 backdrop-blur sticky top-0 z-10">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2">
             <Gamepad2 className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">DevHub</span>
+            <span className="text-xl font-bold">GDev Toolkit</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">
@@ -262,8 +280,8 @@ export default function OnboardingPage() {
       </div>
 
       {/* Content */}
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto">
+      <main className="flex-1 container mx-auto px-4 py-4">
+        <div className="max-w-3xl mx-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -279,13 +297,12 @@ export default function OnboardingPage() {
                     <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
                       <User className="h-8 w-8 text-primary" />
                     </div>
-                    <CardTitle className="text-2xl">Bienvenido a DevHub!</CardTitle>
+                    <CardTitle className="text-2xl">Bienvenido a GDev Toolkit!</CardTitle>
                     <CardDescription>
                       Cuentanos un poco sobre ti para personalizar tu experiencia
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {/* Avatar Preview */}
                     <div className="flex justify-center">
                       <Avatar className="h-24 w-24">
                         <AvatarImage src={data.avatarUrl} />
@@ -309,7 +326,7 @@ export default function OnboardingPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="bio">Bio (opcional)</Label>
+                      <Label htmlFor="bio">Bio (opcional) <span className="text-primary text-xs">+10 XP</span></Label>
                       <Textarea
                         id="bio"
                         placeholder="Cuentanos sobre ti, tus proyectos o intereses..."
@@ -326,7 +343,7 @@ export default function OnboardingPage() {
                 </Card>
               )}
 
-              {/* Step 2: Preferences */}
+              {/* Step 2: Engines & Genres */}
               {currentStep === 2 && (
                 <Card>
                   <CardHeader className="text-center">
@@ -338,51 +355,80 @@ export default function OnboardingPage() {
                       Esto nos ayuda a personalizar las sugerencias de la IA
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Engine Selection */}
-                    <div className="space-y-3">
-                      <Label>Motor de juego preferido</Label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {Object.entries(GAME_ENGINES).map(([key, engine]) => (
-                          <Button
-                            key={key}
-                            type="button"
-                            variant={data.preferredEngine === key ? 'default' : 'outline'}
-                            className="h-auto py-3 flex-col gap-1"
-                            onClick={() => setData({ ...data, preferredEngine: key })}
-                          >
-                            <span className="text-sm font-medium">{engine.label}</span>
-                          </Button>
-                        ))}
+                  <CardContent className="space-y-8">
+                    {/* Engine Selection - Grid with Icons */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-base">Motores de juego <span className="text-primary text-xs">+15 XP</span></Label>
+                        <span className="text-xs text-muted-foreground">
+                          {data.preferredEngines.length}/5 seleccionados
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                        {Object.entries(GAME_ENGINES).map(([key, engine]) => {
+                          const isSelected = data.preferredEngines.includes(key)
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => toggleEngine(key)}
+                              className={cn(
+                                "relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all",
+                                "hover:scale-105 hover:shadow-md",
+                                isSelected
+                                  ? "border-primary bg-primary/10 shadow-sm"
+                                  : "border-border hover:border-primary/50"
+                              )}
+                            >
+                              {isSelected && (
+                                <div className="absolute top-2 right-2">
+                                  <Check className="h-4 w-4 text-primary" />
+                                </div>
+                              )}
+                              <span className="text-2xl mb-2">{engine.icon}</span>
+                              <span className="text-sm font-medium text-center">{engine.label}</span>
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
 
-                    {/* Genre Selection */}
-                    <div className="space-y-3">
+                    {/* Genre Selection - Grid Boxes */}
+                    <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <Label>Generos favoritos</Label>
+                        <Label className="text-base">Generos favoritos <span className="text-primary text-xs">+15 XP</span></Label>
                         <span className="text-xs text-muted-foreground">
-                          {data.preferredGenres.length}/5 seleccionados
+                          {data.preferredGenres.length}/8 seleccionados
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {GAME_GENRES.map((genre) => (
-                          <Badge
-                            key={genre.value}
-                            variant={data.preferredGenres.includes(genre.value) ? 'default' : 'outline'}
-                            className="cursor-pointer transition-colors"
-                            onClick={() => toggleGenre(genre.value)}
-                          >
-                            {genre.label}
-                          </Badge>
-                        ))}
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                        {GAME_GENRES.map((genre) => {
+                          const isSelected = data.preferredGenres.includes(genre.value)
+                          return (
+                            <button
+                              key={genre.value}
+                              type="button"
+                              onClick={() => toggleGenre(genre.value)}
+                              className={cn(
+                                "flex flex-col items-center justify-center p-3 rounded-lg border transition-all",
+                                "hover:scale-105",
+                                isSelected
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-border hover:border-primary/50"
+                              )}
+                            >
+                              <span className="text-xl mb-1">{genre.icon}</span>
+                              <span className="text-xs font-medium text-center leading-tight">{genre.label}</span>
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               )}
 
-              {/* Step 3: Skills */}
+              {/* Step 3: Skills with Collapsible Categories */}
               {currentStep === 3 && (
                 <Card>
                   <CardHeader className="text-center">
@@ -391,69 +437,117 @@ export default function OnboardingPage() {
                     </div>
                     <CardTitle className="text-2xl">Tus Habilidades</CardTitle>
                     <CardDescription>
-                      Selecciona tus habilidades y nivel de experiencia
+                      Selecciona tus habilidades y nivel de experiencia <span className="text-primary">+10 XP base + 5 XP por skill</span>
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Skills by Category */}
+                  <CardContent className="space-y-4">
+                    {/* Collapsible Categories */}
                     {Object.entries(SKILL_CATEGORIES).map(([categoryKey, category]) => {
                       const Icon = categoryIcons[categoryKey as keyof typeof categoryIcons]
                       const categorySkills = availableSkills.filter(s => s.category === categoryKey)
+                      const isExpanded = expandedCategories.includes(categoryKey)
+                      const selectedCount = data.skills.filter(s => s.category === categoryKey).length
 
                       if (categorySkills.length === 0) return null
 
                       return (
-                        <div key={categoryKey} className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`rounded-lg p-1.5 ${category.color} bg-opacity-20`}>
-                              <Icon className="h-4 w-4" />
-                            </div>
-                            <Label>{category.label}</Label>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {categorySkills.map((skill) => {
-                              const isSelected = data.skills.some(s => s.skillId === skill.id)
-                              return (
-                                <Badge
-                                  key={skill.id}
-                                  variant={isSelected ? 'default' : 'outline'}
-                                  className="cursor-pointer transition-colors"
-                                  onClick={() => toggleSkill(skill)}
-                                >
-                                  {skill.name}
-                                  {isSelected && <Check className="ml-1 h-3 w-3" />}
+                        <div key={categoryKey} className="border rounded-lg overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => toggleCategory(categoryKey)}
+                            className={cn(
+                              "w-full flex items-center justify-between p-4 transition-colors",
+                              "hover:bg-muted/50",
+                              isExpanded && "border-b"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={cn("rounded-lg p-2", category.bgColor)}>
+                                <Icon className={cn("h-5 w-5", category.color)} />
+                              </div>
+                              <span className="font-medium">{category.label}</span>
+                              {selectedCount > 0 && (
+                                <Badge variant="secondary" className="ml-2">
+                                  {selectedCount} seleccionadas
                                 </Badge>
-                              )
-                            })}
-                          </div>
+                              )}
+                            </div>
+                            <ChevronDown className={cn(
+                              "h-5 w-5 transition-transform",
+                              isExpanded && "rotate-180"
+                            )} />
+                          </button>
+
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                  {categorySkills.map((skill) => {
+                                    const isSelected = data.skills.some(s => s.skillId === skill.id)
+                                    return (
+                                      <button
+                                        key={skill.id}
+                                        type="button"
+                                        onClick={() => toggleSkill(skill)}
+                                        className={cn(
+                                          "flex items-center justify-between p-3 rounded-lg border transition-all text-left",
+                                          "hover:shadow-sm",
+                                          isSelected
+                                            ? "border-primary bg-primary/5"
+                                            : "border-border hover:border-primary/50"
+                                        )}
+                                      >
+                                        <span className="text-sm font-medium">{skill.name}</span>
+                                        {isSelected && <Check className="h-4 w-4 text-primary shrink-0 ml-2" />}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       )
                     })}
 
-                    {/* Selected Skills with Level */}
+                    {/* Selected Skills with Level Selection */}
                     {data.skills.length > 0 && (
-                      <div className="space-y-3 pt-4 border-t">
-                        <Label>Nivel de experiencia</Label>
+                      <div className="mt-6 space-y-4 pt-4 border-t">
+                        <Label className="text-base">Nivel de experiencia</Label>
                         <div className="space-y-2">
-                          {data.skills.map((skill) => (
-                            <div key={skill.skillId} className="flex items-center justify-between p-3 rounded-lg border">
-                              <span className="font-medium">{skill.name}</span>
-                              <div className="flex gap-1">
-                                {(Object.keys(SKILL_LEVELS) as SkillLevelKey[]).map((level) => (
-                                  <Button
-                                    key={level}
-                                    type="button"
-                                    size="sm"
-                                    variant={skill.level === level ? 'default' : 'ghost'}
-                                    className="text-xs h-7 px-2"
-                                    onClick={() => updateSkillLevel(skill.skillId, level)}
-                                  >
-                                    {SKILL_LEVELS[level].label}
-                                  </Button>
-                                ))}
+                          {data.skills.map((skill) => {
+                            const skillLevel = SKILL_LEVELS[skill.level]
+                            return (
+                              <div key={skill.skillId} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{skill.name}</span>
+                                  <span className={cn("text-xs", skillLevel.color)}>
+                                    {skillLevel.label}
+                                  </span>
+                                </div>
+                                <div className="flex gap-1">
+                                  {(Object.keys(SKILL_LEVELS) as SkillLevelKey[]).map((level) => (
+                                    <Button
+                                      key={level}
+                                      type="button"
+                                      size="sm"
+                                      variant={skill.level === level ? 'default' : 'ghost'}
+                                      className="text-xs h-7 px-2"
+                                      onClick={() => updateSkillLevel(skill.skillId, level)}
+                                    >
+                                      {SKILL_LEVELS[level].label.substring(0, 3)}
+                                    </Button>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
                     )}
@@ -490,21 +584,38 @@ export default function OnboardingPage() {
                       </div>
                     </div>
 
-                    {/* Preferences Summary */}
-                    {(data.preferredEngine || data.preferredGenres.length > 0) && (
+                    {/* Engines Summary */}
+                    {data.preferredEngines.length > 0 && (
                       <div className="space-y-2">
-                        <h4 className="font-medium">Preferencias</h4>
+                        <h4 className="font-medium">Motores preferidos</h4>
                         <div className="flex flex-wrap gap-2">
-                          {data.preferredEngine && (
-                            <Badge variant="secondary">
-                              {GAME_ENGINES[data.preferredEngine as keyof typeof GAME_ENGINES]?.label}
-                            </Badge>
-                          )}
-                          {data.preferredGenres.map((genre) => (
-                            <Badge key={genre} variant="outline">
-                              {GAME_GENRES.find(g => g.value === genre)?.label}
-                            </Badge>
-                          ))}
+                          {data.preferredEngines.map((engine) => {
+                            const engineData = GAME_ENGINES[engine as GameEngineKey]
+                            return (
+                              <Badge key={engine} variant="secondary" className="text-sm py-1 px-3">
+                                <span className="mr-1">{engineData?.icon}</span>
+                                {engineData?.label}
+                              </Badge>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Genres Summary */}
+                    {data.preferredGenres.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Generos favoritos</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {data.preferredGenres.map((genre) => {
+                            const genreData = GAME_GENRES.find(g => g.value === genre)
+                            return (
+                              <Badge key={genre} variant="outline" className="text-sm py-1 px-3">
+                                <span className="mr-1">{genreData?.icon}</span>
+                                {genreData?.label}
+                              </Badge>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
@@ -515,18 +626,24 @@ export default function OnboardingPage() {
                         <h4 className="font-medium">Habilidades ({data.skills.length})</h4>
                         <div className="flex flex-wrap gap-2">
                           {data.skills.map((skill) => (
-                            <Badge key={skill.skillId} variant="secondary">
-                              {skill.name} - {SKILL_LEVELS[skill.level].label}
+                            <Badge key={skill.skillId} variant="secondary" className="text-sm py-1 px-3">
+                              {skill.name}
+                              <span className={cn("ml-1 text-xs", SKILL_LEVELS[skill.level].color)}>
+                                ({SKILL_LEVELS[skill.level].label})
+                              </span>
                             </Badge>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    {/* XP Reward */}
+                    {/* XP Reward - Dynamic */}
                     <div className="p-4 rounded-lg bg-primary/10 text-center">
                       <p className="text-sm text-muted-foreground">Al completar recibiras</p>
-                      <p className="text-2xl font-bold text-primary">+100 XP</p>
+                      <p className="text-3xl font-bold text-primary">+{calculateXpPreview()} XP</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Base 50 XP + bonificaciones por completar tu perfil
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -534,24 +651,25 @@ export default function OnboardingPage() {
             </motion.div>
           </AnimatePresence>
 
-          {/* Navigation */}
-          <div className="flex justify-between mt-6">
+          {/* Navigation - Fixed Height */}
+          <div className="flex justify-between mt-6 h-12">
             <Button
               variant="outline"
               onClick={handleBack}
               disabled={currentStep === 1}
+              className="w-32"
             >
               <ChevronLeft className="mr-2 h-4 w-4" />
               Atras
             </Button>
 
             {currentStep < TOTAL_STEPS ? (
-              <Button onClick={handleNext} disabled={!canProceed()}>
+              <Button onClick={handleNext} disabled={!canProceed()} className="w-32">
                 Siguiente
                 <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={handleComplete} disabled={isLoading}>
+              <Button onClick={handleComplete} disabled={isLoading} className="w-40">
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -572,7 +690,7 @@ export default function OnboardingPage() {
             <p className="text-center mt-4">
               <button
                 type="button"
-                className="text-sm text-muted-foreground hover:text-foreground"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 onClick={handleNext}
               >
                 Saltar este paso

@@ -56,6 +56,7 @@ interface OnboardingData {
   customAvatarFile: File | null
   useCustomAvatar: boolean
   preferredEngines: string[]
+  customEngine: string
   preferredGenres: string[]
   skills: SkillSelection[]
 }
@@ -88,6 +89,7 @@ export default function OnboardingPage() {
     customAvatarFile: null,
     useCustomAvatar: false,
     preferredEngines: [],
+    customEngine: '',
     preferredGenres: [],
     skills: [],
   })
@@ -174,12 +176,21 @@ export default function OnboardingPage() {
   }
 
   const toggleEngine = (engine: string) => {
-    setData(prev => ({
-      ...prev,
-      preferredEngines: prev.preferredEngines.includes(engine)
+    setData(prev => {
+      const isRemoving = prev.preferredEngines.includes(engine)
+      const newEngines = isRemoving
         ? prev.preferredEngines.filter(e => e !== engine)
-        : [...prev.preferredEngines, engine].slice(0, 5),
-    }))
+        : [...prev.preferredEngines, engine].slice(0, 3)
+
+      // Clear custom engine if "other" is deselected
+      const newCustomEngine = engine === 'other' && isRemoving ? '' : prev.customEngine
+
+      return {
+        ...prev,
+        preferredEngines: newEngines,
+        customEngine: newCustomEngine,
+      }
+    })
   }
 
   const toggleGenre = (genre: string) => {
@@ -269,12 +280,17 @@ export default function OnboardingPage() {
         }
       }
 
+      // If "other" is selected and has custom engine, use that; otherwise use first selected engine
+      const preferredEngine = data.preferredEngines.includes('other') && data.customEngine
+        ? `other:${data.customEngine}`
+        : data.preferredEngines[0] || null
+
       const profileUpdate: UpdateTables<'profiles'> = {
         username: data.username,
         display_name: data.displayName || null,
         bio: data.bio || null,
         avatar_url: finalAvatarUrl || null,
-        preferred_engine: data.preferredEngines[0] || null,
+        preferred_engine: preferredEngine,
         preferred_genres: data.preferredGenres.length > 0 ? data.preferredGenres : null,
         onboarding_completed: true,
         updated_at: new Date().toISOString(),
@@ -512,10 +528,10 @@ export default function OnboardingPage() {
                       <div className="flex items-center justify-between">
                         <Label className="text-base">Motores de juego <span className="text-primary text-xs">+15 XP</span></Label>
                         <span className="text-xs text-muted-foreground">
-                          {data.preferredEngines.length}/5 seleccionados
+                          {data.preferredEngines.length}/3 seleccionados
                         </span>
                       </div>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
                         {Object.entries(GAME_ENGINES).map(([key, engine]) => {
                           const isSelected = data.preferredEngines.includes(key)
                           return (
@@ -544,6 +560,29 @@ export default function OnboardingPage() {
                           )
                         })}
                       </div>
+
+                      {/* Custom engine input */}
+                      {data.preferredEngines.includes('other') && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-2"
+                        >
+                          <Label htmlFor="customEngine">¿Cual motor usas?</Label>
+                          <Input
+                            id="customEngine"
+                            placeholder="Ej: Phaser, Pygame, Love2D, Defold..."
+                            value={data.customEngine}
+                            onChange={(e) => setData({ ...data, customEngine: e.target.value })}
+                            maxLength={50}
+                          />
+                        </motion.div>
+                      )}
+
+                      <p className="text-xs text-muted-foreground">
+                        Puedes agregar mas motores desde tu perfil.
+                      </p>
                     </div>
 
                     {/* Genre Selection */}

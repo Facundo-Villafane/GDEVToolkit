@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   User,
@@ -10,13 +11,16 @@ import {
   Music,
   Lightbulb,
   Users,
-  Gamepad2,
   ChevronRight,
   ChevronLeft,
   ChevronDown,
   Check,
   Loader2,
+  Upload,
+  Camera,
+  Info,
 } from 'lucide-react'
+import { GiGamepad } from 'react-icons/gi'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,6 +29,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { SkillLevelSelector, SkillLevelBars } from '@/components/ui/skill-level-selector'
+import { EngineIcon } from '@/components/icons/engine-icon'
+import { GenreIcon } from '@/components/icons/genre-icon'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth-store'
 import { GAME_ENGINES, type GameEngineKey } from '@/lib/constants/engines'
@@ -47,6 +54,8 @@ interface OnboardingData {
   displayName: string
   bio: string
   avatarUrl: string
+  customAvatarFile: File | null
+  useCustomAvatar: boolean
   preferredEngines: string[]
   preferredGenres: string[]
   skills: SkillSelection[]
@@ -64,16 +73,20 @@ export default function OnboardingPage() {
   const router = useRouter()
   const supabase = createClient()
   const { user } = useAuthStore()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [currentStep, setCurrentStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [availableSkills, setAvailableSkills] = useState<Array<{ id: string; name: string; category: string }>>([])
   const [expandedCategories, setExpandedCategories] = useState<string[]>(['programming', 'art'])
+  const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null)
 
   const [data, setData] = useState<OnboardingData>({
     displayName: '',
     bio: '',
     avatarUrl: '',
+    customAvatarFile: null,
+    useCustomAvatar: false,
     preferredEngines: [],
     preferredGenres: [],
     skills: [],
@@ -115,6 +128,36 @@ export default function OnboardingPage() {
     if (currentStep > 1) {
       setCurrentStep(prev => prev - 1)
     }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('La imagen debe ser menor a 2MB')
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setCustomAvatarPreview(reader.result as string)
+        setData(prev => ({
+          ...prev,
+          customAvatarFile: file,
+          useCustomAvatar: true,
+        }))
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleUseProviderAvatar = () => {
+    setData(prev => ({
+      ...prev,
+      useCustomAvatar: false,
+      customAvatarFile: null,
+    }))
+    setCustomAvatarPreview(null)
   }
 
   const toggleEngine = (engine: string) => {
@@ -173,6 +216,28 @@ export default function OnboardingPage() {
     }))
   }
 
+  const uploadAvatar = async (): Promise<string | null> => {
+    if (!data.customAvatarFile || !user?.id) return null
+
+    const fileExt = data.customAvatarFile.name.split('.').pop()
+    const fileName = `${user.id}-${Date.now()}.${fileExt}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, data.customAvatarFile)
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError)
+      return null
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(fileName)
+
+    return urlData.publicUrl
+  }
+
   const handleComplete = async () => {
     if (!user) {
       toast.error('No se encontro el usuario')
@@ -182,10 +247,19 @@ export default function OnboardingPage() {
     setIsLoading(true)
 
     try {
+      let finalAvatarUrl = data.avatarUrl
+
+      if (data.useCustomAvatar && data.customAvatarFile) {
+        const uploadedUrl = await uploadAvatar()
+        if (uploadedUrl) {
+          finalAvatarUrl = uploadedUrl
+        }
+      }
+
       const profileUpdate: UpdateTables<'profiles'> = {
         display_name: data.displayName || null,
         bio: data.bio || null,
-        avatar_url: data.avatarUrl || null,
+        avatar_url: finalAvatarUrl || null,
         preferred_engine: data.preferredEngines[0] || null,
         preferred_genres: data.preferredGenres.length > 0 ? data.preferredGenres : null,
         onboarding_completed: true,
@@ -213,8 +287,7 @@ export default function OnboardingPage() {
         if (skillsError) throw skillsError
       }
 
-      // Calculate XP based on profile completeness
-      let xpAmount = 50 // Base XP
+      let xpAmount = 50
       if (data.bio) xpAmount += 10
       if (data.preferredEngines.length > 0) xpAmount += 15
       if (data.preferredGenres.length > 0) xpAmount += 15
@@ -247,7 +320,6 @@ export default function OnboardingPage() {
     }
   }
 
-  // Calculate XP preview
   const calculateXpPreview = () => {
     let xp = 50
     if (data.bio) xp += 10
@@ -257,13 +329,17 @@ export default function OnboardingPage() {
     return xp
   }
 
+  const currentAvatarUrl = data.useCustomAvatar && customAvatarPreview
+    ? customAvatarPreview
+    : data.avatarUrl
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 flex flex-col">
       {/* Header */}
       <header className="border-b bg-background/95 backdrop-blur sticky top-0 z-10">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <Gamepad2 className="h-8 w-8 text-primary" />
+            <GiGamepad className="h-8 w-8 text-primary" />
             <span className="text-xl font-bold">GDev Toolkit</span>
           </div>
           <div className="flex items-center gap-4">
@@ -303,13 +379,59 @@ export default function OnboardingPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="flex justify-center">
-                      <Avatar className="h-24 w-24">
-                        <AvatarImage src={data.avatarUrl} />
-                        <AvatarFallback className="text-2xl">
-                          {data.displayName?.charAt(0)?.toUpperCase() || '?'}
-                        </AvatarFallback>
-                      </Avatar>
+                    {/* Avatar Selection */}
+                    <div className="space-y-4">
+                      <Label>Foto de perfil</Label>
+                      <div className="flex items-center gap-6">
+                        <div className="relative">
+                          <Avatar className="h-24 w-24">
+                            <AvatarImage src={currentAvatarUrl} />
+                            <AvatarFallback className="text-2xl">
+                              {data.displayName?.charAt(0)?.toUpperCase() || '?'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="absolute bottom-0 right-0 rounded-full bg-primary p-2 text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
+                          >
+                            <Camera className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="hidden"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full"
+                          >
+                            <Upload className="mr-2 h-4 w-4" />
+                            Subir imagen
+                          </Button>
+                          {data.avatarUrl && data.useCustomAvatar && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleUseProviderAvatar}
+                              className="w-full text-xs"
+                            >
+                              Usar imagen de {user?.app_metadata?.provider || 'proveedor'}
+                            </Button>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            JPG, PNG o GIF. Max 2MB.
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="space-y-2">
@@ -339,6 +461,14 @@ export default function OnboardingPage() {
                         {data.bio.length}/300
                       </p>
                     </div>
+
+                    {/* Info note */}
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 text-sm">
+                      <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                      <p className="text-muted-foreground">
+                        Todos estos datos los puedes modificar mas adelante desde tu perfil.
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -348,7 +478,7 @@ export default function OnboardingPage() {
                 <Card>
                   <CardHeader className="text-center">
                     <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                      <Gamepad2 className="h-8 w-8 text-primary" />
+                      <GiGamepad className="h-8 w-8 text-primary" />
                     </div>
                     <CardTitle className="text-2xl">Tus Preferencias</CardTitle>
                     <CardDescription>
@@ -356,7 +486,7 @@ export default function OnboardingPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8">
-                    {/* Engine Selection - Grid with Icons */}
+                    {/* Engine Selection */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-base">Motores de juego <span className="text-primary text-xs">+15 XP</span></Label>
@@ -385,15 +515,17 @@ export default function OnboardingPage() {
                                   <Check className="h-4 w-4 text-primary" />
                                 </div>
                               )}
-                              <span className="text-2xl mb-2">{engine.icon}</span>
-                              <span className="text-sm font-medium text-center">{engine.label}</span>
+                              <div className="h-8 w-8 mb-2 flex items-center justify-center">
+                                <EngineIcon engineKey={key as GameEngineKey} size={28} />
+                              </div>
+                              <span className="text-xs font-medium text-center">{engine.label}</span>
                             </button>
                           )
                         })}
                       </div>
                     </div>
 
-                    {/* Genre Selection - Grid Boxes */}
+                    {/* Genre Selection */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-base">Generos favoritos <span className="text-primary text-xs">+15 XP</span></Label>
@@ -417,12 +549,20 @@ export default function OnboardingPage() {
                                   : "border-border hover:border-primary/50"
                               )}
                             >
-                              <span className="text-xl mb-1">{genre.icon}</span>
+                              <GenreIcon iconName={genre.iconName} size={20} className="mb-1" />
                               <span className="text-xs font-medium text-center leading-tight">{genre.label}</span>
                             </button>
                           )
                         })}
                       </div>
+                    </div>
+
+                    {/* Info note */}
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 text-sm">
+                      <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                      <p className="text-muted-foreground">
+                        Puedes cambiar tus preferencias cuando quieras desde la configuracion de tu perfil.
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -446,7 +586,7 @@ export default function OnboardingPage() {
                       const Icon = categoryIcons[categoryKey as keyof typeof categoryIcons]
                       const categorySkills = availableSkills.filter(s => s.category === categoryKey)
                       const isExpanded = expandedCategories.includes(categoryKey)
-                      const selectedCount = data.skills.filter(s => s.category === categoryKey).length
+                      const selectedInCategory = data.skills.filter(s => s.category === categoryKey)
 
                       if (categorySkills.length === 0) return null
 
@@ -466,9 +606,9 @@ export default function OnboardingPage() {
                                 <Icon className={cn("h-5 w-5", category.color)} />
                               </div>
                               <span className="font-medium">{category.label}</span>
-                              {selectedCount > 0 && (
+                              {selectedInCategory.length > 0 && (
                                 <Badge variant="secondary" className="ml-2">
-                                  {selectedCount} seleccionadas
+                                  {selectedInCategory.length}
                                 </Badge>
                               )}
                             </div>
@@ -487,25 +627,44 @@ export default function OnboardingPage() {
                                 transition={{ duration: 0.2 }}
                                 className="overflow-hidden"
                               >
-                                <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                <div className="p-4 space-y-2">
                                   {categorySkills.map((skill) => {
-                                    const isSelected = data.skills.some(s => s.skillId === skill.id)
+                                    const selectedSkill = data.skills.find(s => s.skillId === skill.id)
+                                    const isSelected = !!selectedSkill
+
                                     return (
-                                      <button
+                                      <div
                                         key={skill.id}
-                                        type="button"
-                                        onClick={() => toggleSkill(skill)}
                                         className={cn(
-                                          "flex items-center justify-between p-3 rounded-lg border transition-all text-left",
-                                          "hover:shadow-sm",
+                                          "flex items-center justify-between p-3 rounded-lg border transition-all",
                                           isSelected
                                             ? "border-primary bg-primary/5"
                                             : "border-border hover:border-primary/50"
                                         )}
                                       >
-                                        <span className="text-sm font-medium">{skill.name}</span>
-                                        {isSelected && <Check className="h-4 w-4 text-primary shrink-0 ml-2" />}
-                                      </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleSkill(skill)}
+                                          className="flex items-center gap-3 flex-1 text-left"
+                                        >
+                                          <div className={cn(
+                                            "h-5 w-5 rounded border-2 flex items-center justify-center transition-colors",
+                                            isSelected
+                                              ? "bg-primary border-primary"
+                                              : "border-muted-foreground/30"
+                                          )}>
+                                            {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                                          </div>
+                                          <span className="text-sm font-medium">{skill.name}</span>
+                                        </button>
+
+                                        {isSelected && selectedSkill && (
+                                          <SkillLevelSelector
+                                            value={selectedSkill.level}
+                                            onChange={(level) => updateSkillLevel(skill.id, level)}
+                                          />
+                                        )}
+                                      </div>
                                     )
                                   })}
                                 </div>
@@ -516,41 +675,30 @@ export default function OnboardingPage() {
                       )
                     })}
 
-                    {/* Selected Skills with Level Selection */}
+                    {/* Selected skills summary */}
                     {data.skills.length > 0 && (
-                      <div className="mt-6 space-y-4 pt-4 border-t">
-                        <Label className="text-base">Nivel de experiencia</Label>
-                        <div className="space-y-2">
-                          {data.skills.map((skill) => {
-                            const skillLevel = SKILL_LEVELS[skill.level]
-                            return (
-                              <div key={skill.skillId} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{skill.name}</span>
-                                  <span className={cn("text-xs", skillLevel.color)}>
-                                    {skillLevel.label}
-                                  </span>
-                                </div>
-                                <div className="flex gap-1">
-                                  {(Object.keys(SKILL_LEVELS) as SkillLevelKey[]).map((level) => (
-                                    <Button
-                                      key={level}
-                                      type="button"
-                                      size="sm"
-                                      variant={skill.level === level ? 'default' : 'ghost'}
-                                      className="text-xs h-7 px-2"
-                                      onClick={() => updateSkillLevel(skill.skillId, level)}
-                                    >
-                                      {SKILL_LEVELS[level].label.substring(0, 3)}
-                                    </Button>
-                                  ))}
-                                </div>
-                              </div>
-                            )
-                          })}
+                      <div className="p-3 rounded-lg bg-muted/30">
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {data.skills.length} habilidades seleccionadas
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {data.skills.map((skill) => (
+                            <Badge key={skill.skillId} variant="secondary" className="gap-1">
+                              {skill.name}
+                              <SkillLevelBars level={skill.level} size="sm" />
+                            </Badge>
+                          ))}
                         </div>
                       </div>
                     )}
+
+                    {/* Info note */}
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 text-sm">
+                      <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                      <p className="text-muted-foreground">
+                        Las barras indican tu nivel: gris (principiante), azul (intermedio), morado (avanzado), amarillo (experto).
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -571,7 +719,7 @@ export default function OnboardingPage() {
                     {/* Profile Summary */}
                     <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
                       <Avatar className="h-16 w-16">
-                        <AvatarImage src={data.avatarUrl} />
+                        <AvatarImage src={currentAvatarUrl} />
                         <AvatarFallback className="text-xl">
                           {data.displayName?.charAt(0)?.toUpperCase() || '?'}
                         </AvatarFallback>
@@ -592,8 +740,8 @@ export default function OnboardingPage() {
                           {data.preferredEngines.map((engine) => {
                             const engineData = GAME_ENGINES[engine as GameEngineKey]
                             return (
-                              <Badge key={engine} variant="secondary" className="text-sm py-1 px-3">
-                                <span className="mr-1">{engineData?.icon}</span>
+                              <Badge key={engine} variant="secondary" className="text-sm py-1 px-3 gap-2">
+                                <EngineIcon engineKey={engine as GameEngineKey} size={16} />
                                 {engineData?.label}
                               </Badge>
                             )
@@ -610,8 +758,8 @@ export default function OnboardingPage() {
                           {data.preferredGenres.map((genre) => {
                             const genreData = GAME_GENRES.find(g => g.value === genre)
                             return (
-                              <Badge key={genre} variant="outline" className="text-sm py-1 px-3">
-                                <span className="mr-1">{genreData?.icon}</span>
+                              <Badge key={genre} variant="outline" className="text-sm py-1 px-3 gap-1">
+                                {genreData && <GenreIcon iconName={genreData.iconName} size={14} />}
                                 {genreData?.label}
                               </Badge>
                             )
@@ -626,18 +774,16 @@ export default function OnboardingPage() {
                         <h4 className="font-medium">Habilidades ({data.skills.length})</h4>
                         <div className="flex flex-wrap gap-2">
                           {data.skills.map((skill) => (
-                            <Badge key={skill.skillId} variant="secondary" className="text-sm py-1 px-3">
+                            <Badge key={skill.skillId} variant="secondary" className="text-sm py-1 px-3 gap-2">
                               {skill.name}
-                              <span className={cn("ml-1 text-xs", SKILL_LEVELS[skill.level].color)}>
-                                ({SKILL_LEVELS[skill.level].label})
-                              </span>
+                              <SkillLevelBars level={skill.level} size="sm" />
                             </Badge>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    {/* XP Reward - Dynamic */}
+                    {/* XP Reward */}
                     <div className="p-4 rounded-lg bg-primary/10 text-center">
                       <p className="text-sm text-muted-foreground">Al completar recibiras</p>
                       <p className="text-3xl font-bold text-primary">+{calculateXpPreview()} XP</p>
@@ -651,7 +797,7 @@ export default function OnboardingPage() {
             </motion.div>
           </AnimatePresence>
 
-          {/* Navigation - Fixed Height */}
+          {/* Navigation */}
           <div className="flex justify-between mt-6 h-12">
             <Button
               variant="outline"

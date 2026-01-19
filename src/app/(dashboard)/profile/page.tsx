@@ -31,6 +31,9 @@ import { levelProgress, getLevelTitle, xpForNextLevel } from '@/lib/constants/xp
 import { SKILL_CATEGORIES, SKILL_LEVELS, type SkillLevelKey } from '@/lib/constants/skills'
 import { GAME_ENGINES, type GameEngineKey } from '@/lib/constants/engines'
 import { GAME_GENRES } from '@/lib/constants/genres'
+import { EngineIcon } from '@/components/icons/engine-icon'
+import { GenreIcon } from '@/components/icons/genre-icon'
+import { SkillLevelBars } from '@/components/ui/skill-level-selector'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -211,8 +214,8 @@ export default function ProfilePage() {
                   {preferredEngines.map((engine) => {
                     const engineData = GAME_ENGINES[engine as GameEngineKey]
                     return (
-                      <Badge key={engine} variant="secondary" className="text-sm py-1 px-3">
-                        <span className="mr-1">{engineData?.icon}</span>
+                      <Badge key={engine} variant="secondary" className="text-sm py-1 px-3 gap-2">
+                        <EngineIcon engineKey={engine as GameEngineKey} size={16} />
                         {engineData?.label || engine}
                       </Badge>
                     )
@@ -228,8 +231,8 @@ export default function ProfilePage() {
                   {preferredGenres.map((genre) => {
                     const genreData = GAME_GENRES.find(g => g.value === genre)
                     return (
-                      <Badge key={genre} variant="outline" className="text-sm py-1 px-3">
-                        <span className="mr-1">{genreData?.icon}</span>
+                      <Badge key={genre} variant="outline" className="text-sm py-1 px-3 gap-1">
+                        {genreData && <GenreIcon iconName={genreData.iconName} size={14} />}
                         {genreData?.label || genre}
                       </Badge>
                     )
@@ -313,12 +316,12 @@ export default function ProfilePage() {
                           return (
                             <div key={skill.id} className="flex items-center justify-between">
                               <span className="text-sm font-medium">{skill.name}</span>
-                              <Badge
-                                variant="secondary"
-                                className={cn("text-xs", levelInfo.color)}
-                              >
-                                {levelInfo.label}
-                              </Badge>
+                              <div className="flex items-center gap-2">
+                                <SkillLevelBars level={skill.level} size="md" />
+                                <span className={cn("text-xs", levelInfo.color)}>
+                                  {levelInfo.label}
+                                </span>
+                              </div>
                             </div>
                           )
                         })}

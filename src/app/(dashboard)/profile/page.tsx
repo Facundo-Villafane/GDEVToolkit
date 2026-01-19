@@ -41,6 +41,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useUserStore } from '@/stores/user-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { createClient } from '@/lib/supabase/client'
@@ -50,7 +57,7 @@ import { GAME_ENGINES, type GameEngineKey } from '@/lib/constants/engines'
 import { GAME_GENRES } from '@/lib/constants/genres'
 import { EngineIcon } from '@/components/icons/engine-icon'
 import { GenreIcon } from '@/components/icons/genre-icon'
-import { SkillLevelBars } from '@/components/ui/skill-level-selector'
+import { SkillLevelBars, SkillLevelSelector } from '@/components/ui/skill-level-selector'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -116,43 +123,66 @@ export default function ProfilePage() {
   })
   const [isSavingPortfolio, setIsSavingPortfolio] = useState(false)
 
+  // Add skill modal
+  const [isAddSkillModalOpen, setIsAddSkillModalOpen] = useState(false)
+  const [availableSkills, setAvailableSkills] = useState<Array<{ id: string; name: string; category: string }>>([])
+  const [selectedSkillId, setSelectedSkillId] = useState('')
+  const [selectedSkillLevel, setSelectedSkillLevel] = useState<SkillLevelKey>('intermediate')
+  const [isSavingSkill, setIsSavingSkill] = useState(false)
+
   // Fetch user skills from database
-  useEffect(() => {
-    const fetchUserSkills = async () => {
-      if (!user?.id) return
+  const fetchUserSkills = async () => {
+    if (!user?.id) return
 
-      setIsLoadingSkills(true)
-      try {
-        const { data, error } = await supabase
-          .from('user_skills')
-          .select(`
-            id,
-            level,
-            skill:skills(id, name, category)
-          `)
-          .eq('user_id', user.id)
+    setIsLoadingSkills(true)
+    try {
+      const { data, error } = await supabase
+        .from('user_skills')
+        .select(`
+          id,
+          level,
+          skill:skills(id, name, category)
+        `)
+        .eq('user_id', user.id)
 
-        if (error) throw error
+      if (error) throw error
 
-        if (data) {
-          const skills: UserSkill[] = data.map((item: { id: string; level: string; skill: { id: string; name: string; category: string } | null }) => ({
-            id: item.id,
-            name: item.skill?.name || '',
-            category: item.skill?.category || '',
-            level: item.level as SkillLevelKey,
-          })).filter((s: UserSkill) => s.name)
+      if (data) {
+        const skills: UserSkill[] = data.map((item: { id: string; level: string; skill: { id: string; name: string; category: string } | null }) => ({
+          id: item.id,
+          name: item.skill?.name || '',
+          category: item.skill?.category || '',
+          level: item.level as SkillLevelKey,
+        })).filter((s: UserSkill) => s.name)
 
-          setUserSkills(skills)
-        }
-      } catch (error) {
-        console.error('Error fetching skills:', error)
-      } finally {
-        setIsLoadingSkills(false)
+        setUserSkills(skills)
       }
+    } catch (error) {
+      console.error('Error fetching skills:', error)
+    } finally {
+      setIsLoadingSkills(false)
     }
+  }
 
+  useEffect(() => {
     fetchUserSkills()
   }, [user?.id, supabase])
+
+  // Fetch available skills for add modal
+  useEffect(() => {
+    const fetchAvailableSkills = async () => {
+      const { data } = await supabase
+        .from('skills')
+        .select('id, name, category')
+        .order('category')
+        .order('name')
+
+      if (data) {
+        setAvailableSkills(data)
+      }
+    }
+    fetchAvailableSkills()
+  }, [supabase])
 
   // Load edit data when modal opens
   useEffect(() => {
@@ -249,6 +279,55 @@ export default function ProfilePage() {
 
   const handleRemovePortfolioItem = (id: string) => {
     setPortfolioItems(prev => prev.filter(item => item.id !== id))
+  }
+
+  // Add skill handler
+  const handleAddSkill = async () => {
+    if (!user?.id || !selectedSkillId) {
+      toast.error('Selecciona una habilidad')
+      return
+    }
+
+    // Check if skill already exists
+    const skillExists = userSkills.some(s => {
+      const matchingAvailable = availableSkills.find(a => a.id === selectedSkillId)
+      return matchingAvailable && s.name === matchingAvailable.name
+    })
+
+    if (skillExists) {
+      toast.error('Ya tienes esta habilidad registrada')
+      return
+    }
+
+    setIsSavingSkill(true)
+    try {
+      const { error } = await supabase
+        .from('user_skills')
+        .insert({
+          user_id: user.id,
+          skill_id: selectedSkillId,
+          level: selectedSkillLevel,
+        } as never)
+
+      if (error) throw error
+
+      toast.success('Habilidad agregada!')
+      setIsAddSkillModalOpen(false)
+      setSelectedSkillId('')
+      setSelectedSkillLevel('intermediate')
+      fetchUserSkills()
+    } catch (error) {
+      console.error('Error adding skill:', error)
+      toast.error('Error al agregar la habilidad')
+    } finally {
+      setIsSavingSkill(false)
+    }
+  }
+
+  // Get skills not yet added by user
+  const getUnaddedSkills = () => {
+    const userSkillNames = userSkills.map(s => s.name)
+    return availableSkills.filter(s => !userSkillNames.includes(s.name))
   }
 
   // Get user's preferred engines and genres from profile
@@ -395,7 +474,7 @@ export default function ProfilePage() {
                 }
               </p>
             </div>
-            <Button>
+            <Button onClick={() => setIsAddSkillModalOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Agregar Skill
             </Button>
@@ -445,11 +524,11 @@ export default function ProfilePage() {
                         {categorySkills.map((skill) => {
                           const levelInfo = SKILL_LEVELS[skill.level]
                           return (
-                            <div key={skill.id} className="flex items-center justify-between">
-                              <span className="text-sm font-medium">{skill.name}</span>
-                              <div className="flex items-center gap-2">
+                            <div key={skill.id} className="flex items-center justify-between gap-4">
+                              <span className="text-sm font-medium flex-1 min-w-0 truncate">{skill.name}</span>
+                              <div className="flex items-center gap-2 shrink-0">
                                 <SkillLevelBars level={skill.level} size="md" />
-                                <span className={cn("text-xs", levelInfo.color)}>
+                                <span className={cn("text-xs w-20 text-right", levelInfo.color)}>
                                   {levelInfo.label}
                                 </span>
                               </div>
@@ -790,6 +869,80 @@ export default function ProfilePage() {
             </Button>
             <Button onClick={handleAddPortfolioItem} disabled={isSavingPortfolio}>
               {isSavingPortfolio ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Agregando...
+                </>
+              ) : (
+                <>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Agregar
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Skill Modal */}
+      <Dialog open={isAddSkillModalOpen} onOpenChange={setIsAddSkillModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Agregar Habilidad</DialogTitle>
+            <DialogDescription>
+              Selecciona una habilidad y tu nivel de experiencia.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="skill-select">Habilidad</Label>
+              <Select value={selectedSkillId} onValueChange={setSelectedSkillId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona una habilidad" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SKILL_CATEGORIES).map(([catKey, category]) => {
+                    const categorySkills = getUnaddedSkills().filter(s => s.category === catKey)
+                    if (categorySkills.length === 0) return null
+
+                    return (
+                      <div key={catKey}>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                          {category.label}
+                        </div>
+                        {categorySkills.map((skill) => (
+                          <SelectItem key={skill.id} value={skill.id}>
+                            {skill.name}
+                          </SelectItem>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Nivel de experiencia</Label>
+              <div className="flex items-center gap-4">
+                <SkillLevelSelector
+                  value={selectedSkillLevel}
+                  onChange={setSelectedSkillLevel}
+                />
+                <span className={cn("text-sm", SKILL_LEVELS[selectedSkillLevel].color)}>
+                  {SKILL_LEVELS[selectedSkillLevel].label}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {SKILL_LEVELS[selectedSkillLevel].description}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddSkillModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleAddSkill} disabled={isSavingSkill || !selectedSkillId}>
+              {isSavingSkill ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Agregando...

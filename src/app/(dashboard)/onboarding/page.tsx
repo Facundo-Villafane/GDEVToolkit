@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   User,
@@ -16,7 +15,6 @@ import {
   ChevronDown,
   Check,
   Loader2,
-  Upload,
   Camera,
   Info,
 } from 'lucide-react'
@@ -51,6 +49,7 @@ interface SkillSelection {
 }
 
 interface OnboardingData {
+  username: string
   displayName: string
   bio: string
   avatarUrl: string
@@ -82,6 +81,7 @@ export default function OnboardingPage() {
   const [customAvatarPreview, setCustomAvatarPreview] = useState<string | null>(null)
 
   const [data, setData] = useState<OnboardingData>({
+    username: '',
     displayName: '',
     bio: '',
     avatarUrl: '',
@@ -107,14 +107,27 @@ export default function OnboardingPage() {
   }, [supabase])
 
   useEffect(() => {
-    if (user?.user_metadata) {
-      setData(prev => ({
-        ...prev,
-        displayName: user.user_metadata.full_name || user.user_metadata.name || '',
-        avatarUrl: user.user_metadata.avatar_url || '',
-      }))
+    if (user) {
+      // Fetch existing profile to get username
+      const fetchProfile = async () => {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single()
+
+        const profileData = profile as { username: string } | null
+
+        setData(prev => ({
+          ...prev,
+          username: profileData?.username || '',
+          displayName: user.user_metadata?.full_name || user.user_metadata?.name || '',
+          avatarUrl: user.user_metadata?.avatar_url || '',
+        }))
+      }
+      fetchProfile()
     }
-  }, [user])
+  }, [user, supabase])
 
   const progress = (currentStep / TOTAL_STEPS) * 100
 
@@ -257,6 +270,7 @@ export default function OnboardingPage() {
       }
 
       const profileUpdate: UpdateTables<'profiles'> = {
+        username: data.username,
         display_name: data.displayName || null,
         bio: data.bio || null,
         avatar_url: finalAvatarUrl || null,
@@ -314,7 +328,7 @@ export default function OnboardingPage() {
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return data.displayName.trim().length >= 2
+        return data.username.trim().length >= 3 && data.displayName.trim().length >= 2
       default:
         return true
     }
@@ -383,22 +397,16 @@ export default function OnboardingPage() {
                     <div className="space-y-4">
                       <Label>Foto de perfil</Label>
                       <div className="flex items-center gap-6">
-                        <div className="relative">
+                        <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                           <Avatar className="h-24 w-24">
                             <AvatarImage src={currentAvatarUrl} />
                             <AvatarFallback className="text-2xl">
                               {data.displayName?.charAt(0)?.toUpperCase() || '?'}
                             </AvatarFallback>
                           </Avatar>
-                          <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="absolute bottom-0 right-0 rounded-full bg-primary p-2 text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
-                          >
-                            <Camera className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <div className="flex-1 space-y-2">
+                          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Camera className="h-6 w-6 text-white" />
+                          </div>
                           <input
                             ref={fileInputRef}
                             type="file"
@@ -406,23 +414,18 @@ export default function OnboardingPage() {
                             onChange={handleFileChange}
                             className="hidden"
                           />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-full"
-                          >
-                            <Upload className="mr-2 h-4 w-4" />
-                            Subir imagen
-                          </Button>
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <p className="text-sm text-muted-foreground">
+                            Click en la imagen para cambiarla
+                          </p>
                           {data.avatarUrl && data.useCustomAvatar && (
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
                               onClick={handleUseProviderAvatar}
-                              className="w-full text-xs"
+                              className="text-xs p-0 h-auto"
                             >
                               Usar imagen de {user?.app_metadata?.provider || 'proveedor'}
                             </Button>
@@ -432,6 +435,24 @@ export default function OnboardingPage() {
                           </p>
                         </div>
                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Nombre de usuario *</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
+                        <Input
+                          id="username"
+                          placeholder="tu_nombre"
+                          value={data.username}
+                          onChange={(e) => setData({ ...data, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
+                          className="pl-8"
+                          maxLength={20}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Solo letras, numeros y guiones bajos. Sera tu identificador unico.
+                      </p>
                     </div>
 
                     <div className="space-y-2">

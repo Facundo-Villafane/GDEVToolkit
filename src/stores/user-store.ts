@@ -5,10 +5,13 @@ import type { UserProfile, UserSkill } from '@/types'
 interface UserState {
   profile: UserProfile | null
   isLoading: boolean
+  _refreshCallback: (() => Promise<void>) | null
 
   // Actions
   setProfile: (profile: UserProfile | null) => void
   updateProfile: (updates: Partial<UserProfile>) => void
+  setRefreshCallback: (callback: (() => Promise<void>) | null) => void
+  refreshProfile: () => Promise<void>
   addSkill: (skill: UserSkill) => void
   updateSkill: (skillId: string, updates: Partial<UserSkill>) => void
   removeSkill: (skillId: string) => void
@@ -20,11 +23,12 @@ interface UserState {
 const initialState = {
   profile: null,
   isLoading: false,
+  _refreshCallback: null,
 }
 
 export const useUserStore = create<UserState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initialState,
 
       setProfile: (profile) => set({ profile }),
@@ -35,6 +39,15 @@ export const useUserStore = create<UserState>()(
             ? { ...state.profile, ...updates }
             : null,
         })),
+
+      setRefreshCallback: (callback) => set({ _refreshCallback: callback }),
+
+      refreshProfile: async () => {
+        const callback = get()._refreshCallback
+        if (callback) {
+          await callback()
+        }
+      },
 
       addSkill: (skill) =>
         set((state) => ({

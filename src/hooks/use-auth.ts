@@ -14,7 +14,39 @@ export function useAuth() {
   const router = useRouter()
   const supabase = createClient()
   const { user, session, isLoading, isAuthenticated, setSession, setLoading, signOut: clearAuth } = useAuthStore()
-  const { setProfile, reset: resetUser } = useUserStore()
+  const { setProfile, setRefreshCallback, reset: resetUser } = useUserStore()
+
+  // Function to fetch and set profile
+  const fetchAndSetProfile = useCallback(async (userId: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    const profile = data as ProfileRow | null
+
+    if (profile) {
+      setProfile({
+        id: profile.id,
+        username: profile.username,
+        displayName: profile.display_name,
+        avatarUrl: profile.avatar_url,
+        bio: profile.bio,
+        role: profile.role,
+        xpTotal: profile.xp_total,
+        xpLevel: profile.xp_level,
+        preferredEngine: profile.preferred_engine,
+        preferredGenres: profile.preferred_genres || [],
+        onboardingCompleted: profile.onboarding_completed,
+        skills: [], // Skills loaded separately
+        createdAt: profile.created_at,
+        updatedAt: profile.updated_at,
+        // Include tagline if it exists
+        ...(profile as { tagline?: string }).tagline && { tagline: (profile as { tagline?: string }).tagline },
+      })
+    }
+  }, [supabase, setProfile])
 
   // Initialize auth state
   useEffect(() => {
@@ -25,33 +57,12 @@ export function useAuth() {
       setSession(session)
 
       if (session?.user) {
-        // Fetch user profile
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
+        await fetchAndSetProfile(session.user.id)
 
-        const profile = data as ProfileRow | null
-
-        if (profile) {
-          setProfile({
-            id: profile.id,
-            username: profile.username,
-            displayName: profile.display_name,
-            avatarUrl: profile.avatar_url,
-            bio: profile.bio,
-            role: profile.role,
-            xpTotal: profile.xp_total,
-            xpLevel: profile.xp_level,
-            preferredEngine: profile.preferred_engine,
-            preferredGenres: profile.preferred_genres || [],
-            onboardingCompleted: profile.onboarding_completed,
-            skills: [], // Skills loaded separately
-            createdAt: profile.created_at,
-            updatedAt: profile.updated_at,
-          })
-        }
+        // Set up refresh callback
+        setRefreshCallback(async () => {
+          await fetchAndSetProfile(session.user.id)
+        })
       }
 
       setLoading(false)
@@ -73,7 +84,7 @@ export function useAuth() {
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase, setSession, setLoading, setProfile, resetUser])
+  }, [supabase, setSession, setLoading, fetchAndSetProfile, setRefreshCallback, resetUser])
 
   // Sign in with email
   const signInWithEmail = useCallback(

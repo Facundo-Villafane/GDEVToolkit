@@ -1,0 +1,32 @@
+name: Keep Supabase Alive
+
+on:
+  schedule:
+    # Runs every 5 days at 00:00 UTC
+    - cron: '0 0 */5 * *'
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          echo "Pinging Supabase to keep project active..."
+
+          # Ping the Supabase REST API (this wakes up the database)
+          curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/profiles?select=id&limit=1"
+
+          echo ""
+          echo "Ping completed at $(date)"
+
+      - name: Ping Application (Optional)
+        continue-on-error: true
+        run: |
+          # Also ping your Vercel app to keep it warm
+          if [ -n "${{ secrets.APP_URL }}" ]; then
+            curl -s -o /dev/null -w "App response: %{http_code}\n" "${{ secrets.APP_URL }}"
+          fi

@@ -83,6 +83,7 @@ interface UserSkill {
   name: string
   category: string
   level: SkillLevelKey
+  description: string | null
 }
 
 interface PortfolioItem {
@@ -153,18 +154,19 @@ export default function ProfilePage() {
         .select(`
           id,
           level,
-          skill:skills(id, name, category)
+          skill:skills(id, name, category, description)
         `)
         .eq('user_id', user.id)
 
       if (error) throw error
 
       if (data) {
-        const skills: UserSkill[] = data.map((item: { id: string; level: string; skill: { id: string; name: string; category: string } | null }) => ({
+        const skills: UserSkill[] = data.map((item: { id: string; level: string; skill: { id: string; name: string; category: string; description: string | null } | null }) => ({
           id: item.id,
           name: item.skill?.name || '',
           category: item.skill?.category || '',
           level: item.level as SkillLevelKey,
+          description: item.skill?.description || null,
         })).filter((s: UserSkill) => s.name)
 
         setUserSkills(skills)
@@ -592,7 +594,7 @@ export default function ProfilePage() {
                                     <MoreVertical className="h-4 w-4 text-muted-foreground" />
                                   </button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-72" align="start">
+                                <PopoverContent className="w-80" align="start">
                                   <div className="space-y-3">
                                     <div className="font-semibold flex items-center justify-between">
                                       {skill.name}
@@ -610,6 +612,11 @@ export default function ProfilePage() {
                                         )}
                                       </Button>
                                     </div>
+                                    {skill.description && (
+                                      <p className="text-sm text-muted-foreground">
+                                        {skill.description}
+                                      </p>
+                                    )}
                                     <Separator />
                                     <div className="text-xs text-muted-foreground">
                                       <span className="font-medium">{category.label}</span>

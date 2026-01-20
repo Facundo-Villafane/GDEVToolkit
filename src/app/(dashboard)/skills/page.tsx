@@ -15,12 +15,14 @@ import {
   Lightbulb,
   Users,
   Save,
+  Wand2,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -73,12 +75,14 @@ interface Skill {
   id: string
   name: string
   category: string
+  description: string | null
   created_at: string
 }
 
 interface SkillFormData {
   name: string
   category: string
+  description: string
 }
 
 export default function SkillsManagementPage() {
@@ -103,7 +107,43 @@ export default function SkillsManagementPage() {
   const [formData, setFormData] = useState<SkillFormData>({
     name: '',
     category: 'programming',
+    description: '',
   })
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false)
+
+  // Generate description with AI
+  const handleGenerateDescription = async () => {
+    if (!formData.name.trim()) {
+      toast.error('Primero ingresa el nombre de la skill')
+      return
+    }
+
+    setIsGeneratingDescription(true)
+    try {
+      const response = await fetch('/api/ai/generate-skill-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          skillName: formData.name.trim(),
+          category: SKILL_CATEGORIES[formData.category as keyof typeof SKILL_CATEGORIES]?.label || formData.category,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Error al generar descripción')
+      }
+
+      const data = await response.json()
+      setFormData({ ...formData, description: data.description })
+      toast.success('Descripción generada con IA')
+    } catch (error) {
+      console.error('Error generating description:', error)
+      toast.error(error instanceof Error ? error.message : 'Error al generar la descripción')
+    } finally {
+      setIsGeneratingDescription(false)
+    }
+  }
 
   // Check admin access
   useEffect(() => {
@@ -167,13 +207,14 @@ export default function SkillsManagementPage() {
         .insert({
           name: formData.name.trim(),
           category: formData.category,
+          description: formData.description.trim() || null,
         } as never)
 
       if (error) throw error
 
       toast.success('Habilidad creada correctamente')
       setIsCreateModalOpen(false)
-      setFormData({ name: '', category: 'programming' })
+      setFormData({ name: '', category: 'programming', description: '' })
       fetchSkills()
     } catch (error: unknown) {
       console.error('Error creating skill:', error)
@@ -201,6 +242,7 @@ export default function SkillsManagementPage() {
         .update({
           name: formData.name.trim(),
           category: formData.category,
+          description: formData.description.trim() || null,
         } as never)
         .eq('id', selectedSkill.id)
 
@@ -209,7 +251,7 @@ export default function SkillsManagementPage() {
       toast.success('Habilidad actualizada correctamente')
       setIsEditModalOpen(false)
       setSelectedSkill(null)
-      setFormData({ name: '', category: 'programming' })
+      setFormData({ name: '', category: 'programming', description: '' })
       fetchSkills()
     } catch (error: unknown) {
       console.error('Error updating skill:', error)
@@ -251,7 +293,7 @@ export default function SkillsManagementPage() {
   // Open edit modal
   const openEditModal = (skill: Skill) => {
     setSelectedSkill(skill)
-    setFormData({ name: skill.name, category: skill.category })
+    setFormData({ name: skill.name, category: skill.category, description: skill.description || '' })
     setIsEditModalOpen(true)
   }
 
@@ -297,7 +339,7 @@ export default function SkillsManagementPage() {
           </div>
         </div>
         <Button onClick={() => {
-          setFormData({ name: '', category: 'programming' })
+          setFormData({ name: '', category: 'programming', description: '' })
           setIsCreateModalOpen(true)
         }}>
           <Plus className="mr-2 h-4 w-4" />
@@ -390,8 +432,9 @@ export default function SkillsManagementPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>
+                  <TableHead>Descripción</TableHead>
                   <TableHead>Categoría</TableHead>
-                  <TableHead>Fecha de creación</TableHead>
+                  <TableHead>Fecha</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -402,6 +445,9 @@ export default function SkillsManagementPage() {
                   return (
                     <TableRow key={skill.id}>
                       <TableCell className="font-medium">{skill.name}</TableCell>
+                      <TableCell className="text-muted-foreground max-w-[300px] truncate">
+                        {skill.description || <span className="text-muted-foreground/50 italic">Sin descripción</span>}
+                      </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="gap-1">
                           {Icon && <Icon className="h-3 w-3" />}
@@ -476,6 +522,33 @@ export default function SkillsManagementPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="description">Descripción</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleGenerateDescription}
+                  disabled={isGeneratingDescription || !formData.name.trim()}
+                  className="h-7 text-xs gap-1"
+                >
+                  {isGeneratingDescription ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Wand2 className="h-3 w-3" />
+                  )}
+                  Generar con IA
+                </Button>
+              </div>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Breve descripción de la habilidad..."
+                rows={3}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
@@ -528,6 +601,33 @@ export default function SkillsManagementPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="edit-description">Descripción</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleGenerateDescription}
+                  disabled={isGeneratingDescription || !formData.name.trim()}
+                  className="h-7 text-xs gap-1"
+                >
+                  {isGeneratingDescription ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Wand2 className="h-3 w-3" />
+                  )}
+                  Generar con IA
+                </Button>
+              </div>
+              <Textarea
+                id="edit-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Breve descripción de la habilidad..."
+                rows={3}
+              />
             </div>
           </div>
           <DialogFooter>

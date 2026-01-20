@@ -120,8 +120,22 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('Error in Oracle brainstorm:', error)
+
+    // Mejor logging del error
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorDetails = error instanceof Error ? error.stack : String(error)
+    console.error('Error details:', errorDetails)
+
+    // Detectar si es rate limit
+    if (errorMessage.includes('rate') || errorMessage.includes('429')) {
+      return NextResponse.json(
+        { error: 'Limite de requests alcanzado. Intenta de nuevo en unos segundos.' },
+        { status: 429 }
+      )
+    }
+
     return NextResponse.json(
-      { error: 'Error al generar ideas. Por favor intenta de nuevo.' },
+      { error: `Error al generar ideas: ${errorMessage}` },
       { status: 500 }
     )
   }

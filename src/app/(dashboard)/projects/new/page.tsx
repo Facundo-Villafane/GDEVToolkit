@@ -485,26 +485,54 @@ export default function NewProjectPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="jamHours" className="flex items-center gap-2">
+                <Label className="flex items-center gap-2">
                   <Clock className="h-4 w-4" />
-                  Duracion (horas)
+                  Duracion
                 </Label>
-                <Input
-                  id="jamHours"
-                  type="number"
-                  min={1}
-                  max={168}
-                  value={projectData.jamTotalHours}
-                  onChange={(e) => setProjectData(prev => ({
-                    ...prev,
-                    jamTotalHours: parseInt(e.target.value) || 48,
-                  }))}
-                />
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: '24h', hours: 24 },
+                    { label: '48h', hours: 48 },
+                    { label: '72h', hours: 72 },
+                    { label: '1 sem', hours: 168 },
+                  ].map((option) => (
+                    <Button
+                      key={option.hours}
+                      type="button"
+                      variant={projectData.jamTotalHours === option.hours ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setProjectData(prev => ({ ...prev, jamTotalHours: option.hours }))}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <Input
+                    id="jamHours"
+                    type="number"
+                    min={1}
+                    max={720}
+                    placeholder="Horas personalizadas"
+                    value={[24, 48, 72, 168].includes(projectData.jamTotalHours) ? '' : projectData.jamTotalHours}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value)
+                      if (value > 0) {
+                        setProjectData(prev => ({ ...prev, jamTotalHours: value }))
+                      }
+                    }}
+                    className="w-32"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    = {Math.floor(projectData.jamTotalHours / 24)}d {projectData.jamTotalHours % 24}h
+                  </span>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {projectData.jamTotalHours <= 24 && 'Jam muy corta - las ideas deben ser extremadamente simples'}
                   {projectData.jamTotalHours > 24 && projectData.jamTotalHours <= 48 && 'Jam corta - enfocate en una mecanica core pulida'}
                   {projectData.jamTotalHours > 48 && projectData.jamTotalHours <= 72 && 'Jam estandar - puedes agregar algo de polish'}
-                  {projectData.jamTotalHours > 72 && 'Jam larga - hay tiempo para features adicionales'}
+                  {projectData.jamTotalHours > 72 && projectData.jamTotalHours <= 168 && 'Jam larga - hay tiempo para features adicionales'}
+                  {projectData.jamTotalHours > 168 && 'Jam extendida - puedes planificar con mas detalle'}
                 </p>
               </div>
             </CardContent>

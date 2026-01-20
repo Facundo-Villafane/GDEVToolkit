@@ -22,6 +22,10 @@ import {
   Image as ImageIcon,
   X,
   Save,
+  Search,
+  MoreVertical,
+  Trash2,
+  Heart,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -48,6 +52,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { useUserStore } from '@/stores/user-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { createClient } from '@/lib/supabase/client'
@@ -129,6 +138,9 @@ export default function ProfilePage() {
   const [selectedSkillId, setSelectedSkillId] = useState('')
   const [selectedSkillLevel, setSelectedSkillLevel] = useState<SkillLevelKey>('intermediate')
   const [isSavingSkill, setIsSavingSkill] = useState(false)
+  const [skillSearchQuery, setSkillSearchQuery] = useState('')
+  const [addSkillSearchQuery, setAddSkillSearchQuery] = useState('')
+  const [isDeletingSkill, setIsDeletingSkill] = useState<string | null>(null)
 
   // Fetch user skills from database
   const fetchUserSkills = async () => {
@@ -330,6 +342,39 @@ export default function ProfilePage() {
     return availableSkills.filter(s => !userSkillNames.includes(s.name))
   }
 
+  // Delete skill handler
+  const handleDeleteSkill = async (skillId: string) => {
+    if (!user?.id) return
+
+    setIsDeletingSkill(skillId)
+    try {
+      const { error } = await supabase
+        .from('user_skills')
+        .delete()
+        .eq('id', skillId)
+
+      if (error) throw error
+
+      toast.success('Habilidad eliminada')
+      fetchUserSkills()
+    } catch (error) {
+      console.error('Error deleting skill:', error)
+      toast.error('Error al eliminar la habilidad')
+    } finally {
+      setIsDeletingSkill(null)
+    }
+  }
+
+  // Filter skills by search query
+  const filteredUserSkills = skillSearchQuery
+    ? userSkills.filter(s => s.name.toLowerCase().includes(skillSearchQuery.toLowerCase()))
+    : userSkills
+
+  // Filter available skills for add modal
+  const filteredAvailableSkills = addSkillSearchQuery
+    ? getUnaddedSkills().filter(s => s.name.toLowerCase().includes(addSkillSearchQuery.toLowerCase()))
+    : getUnaddedSkills()
+
   // Get user's preferred engines and genres from profile
   const preferredEngines = profile?.preferredEngine ? [profile.preferredEngine] : []
   const preferredGenres = profile?.preferredGenres || []
@@ -464,7 +509,8 @@ export default function ProfilePage() {
         </TabsList>
 
         <TabsContent value="skills" className="space-y-4">
-          <div className="flex items-center justify-between">
+          {/* Header with search and add button */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-semibold">Mis Habilidades</h2>
               <p className="text-sm text-muted-foreground">
@@ -474,10 +520,23 @@ export default function ProfilePage() {
                 }
               </p>
             </div>
-            <Button onClick={() => setIsAddSkillModalOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Agregar Skill
-            </Button>
+            <div className="flex items-center gap-2">
+              {userSkills.length > 0 && (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar en el perfil"
+                    value={skillSearchQuery}
+                    onChange={(e) => setSkillSearchQuery(e.target.value)}
+                    className="pl-9 w-[200px]"
+                  />
+                </div>
+              )}
+              <Button onClick={() => setIsAddSkillModalOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Agregar Skill
+              </Button>
+            </div>
           </div>
 
           {isLoadingSkills ? (
@@ -502,13 +561,13 @@ export default function ProfilePage() {
             <div className="grid gap-4 md:grid-cols-2">
               {Object.entries(SKILL_CATEGORIES).map(([key, category]) => {
                 const Icon = categoryIcons[key as keyof typeof categoryIcons]
-                const categorySkills = userSkills.filter((s) => s.category === key)
+                const categorySkills = filteredUserSkills.filter((s) => s.category === key)
 
                 if (categorySkills.length === 0) return null
 
                 return (
                   <Card key={key}>
-                    <CardHeader>
+                    <CardHeader className="pb-3">
                       <CardTitle className="flex items-center gap-2 text-base">
                         <div className={cn("rounded-lg p-2", category.bgColor)}>
                           <Icon className={cn("h-4 w-4", category.color)} />
@@ -520,18 +579,72 @@ export default function ProfilePage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         {categorySkills.map((skill) => {
                           const levelInfo = SKILL_LEVELS[skill.level]
                           return (
-                            <div key={skill.id} className="flex items-center justify-between gap-4">
-                              <span className="text-sm font-medium flex-1 min-w-0 truncate">{skill.name}</span>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <SkillLevelBars level={skill.level} size="md" />
-                                <span className={cn("text-xs w-20 text-right", levelInfo.color)}>
-                                  {levelInfo.label}
-                                </span>
-                              </div>
+                            <div key={skill.id} className="flex items-center gap-2 group">
+                              <Heart className="h-4 w-4 text-muted-foreground/30 hover:text-red-500 cursor-pointer transition-colors" />
+                              <SkillLevelBars level={skill.level} size="md" />
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer">
+                                    <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-72" align="start">
+                                  <div className="space-y-3">
+                                    <div className="font-semibold flex items-center justify-between">
+                                      {skill.name}
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-destructive hover:text-destructive"
+                                        onClick={() => handleDeleteSkill(skill.id)}
+                                        disabled={isDeletingSkill === skill.id}
+                                      >
+                                        {isDeletingSkill === skill.id ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <Trash2 className="h-4 w-4" />
+                                        )}
+                                      </Button>
+                                    </div>
+                                    <Separator />
+                                    <div className="text-xs text-muted-foreground">
+                                      <span className="font-medium">{category.label}</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <p className="text-sm font-medium">Nivel de experiencia</p>
+                                      <div className="flex items-center gap-2">
+                                        <SkillLevelBars level={skill.level} size="md" />
+                                        <span className={cn("text-sm", levelInfo.color)}>
+                                          {levelInfo.label}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">
+                                        {levelInfo.description}
+                                      </p>
+                                    </div>
+                                    <Separator />
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="w-full text-destructive hover:text-destructive"
+                                      onClick={() => handleDeleteSkill(skill.id)}
+                                      disabled={isDeletingSkill === skill.id}
+                                    >
+                                      {isDeletingSkill === skill.id ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                      )}
+                                      Eliminar habilidad
+                                    </Button>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                              <span className="text-sm font-medium flex-1">{skill.name}</span>
                             </div>
                           )
                         })}
@@ -885,50 +998,98 @@ export default function ProfilePage() {
       </Dialog>
 
       {/* Add Skill Modal */}
-      <Dialog open={isAddSkillModalOpen} onOpenChange={setIsAddSkillModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+      <Dialog open={isAddSkillModalOpen} onOpenChange={(open) => {
+        setIsAddSkillModalOpen(open)
+        if (!open) {
+          setAddSkillSearchQuery('')
+          setSelectedSkillId('')
+          setSelectedSkillLevel('intermediate')
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px] max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Agregar Habilidad</DialogTitle>
             <DialogDescription>
-              Selecciona una habilidad y tu nivel de experiencia.
+              Busca y selecciona una habilidad para agregar a tu perfil.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="skill-select">Habilidad</Label>
-              <Select value={selectedSkillId} onValueChange={setSelectedSkillId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona una habilidad" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(SKILL_CATEGORIES).map(([catKey, category]) => {
-                    const categorySkills = getUnaddedSkills().filter(s => s.category === catKey)
-                    if (categorySkills.length === 0) return null
 
-                    return (
-                      <div key={catKey}>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                          {category.label}
-                        </div>
-                        {categorySkills.map((skill) => (
-                          <SelectItem key={skill.id} value={skill.id}>
-                            {skill.name}
-                          </SelectItem>
-                        ))}
+          {/* Search Input */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar habilidad..."
+              value={addSkillSearchQuery}
+              onChange={(e) => setAddSkillSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+            {addSkillSearchQuery && (
+              <button
+                onClick={() => setAddSkillSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Skills List */}
+          <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[400px] border rounded-lg">
+            {filteredAvailableSkills.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Search className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  {addSkillSearchQuery
+                    ? 'No se encontraron habilidades'
+                    : 'Ya agregaste todas las habilidades disponibles'
+                  }
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {filteredAvailableSkills.map((skill) => {
+                  const category = SKILL_CATEGORIES[skill.category as keyof typeof SKILL_CATEGORIES]
+                  const isSelected = selectedSkillId === skill.id
+                  return (
+                    <button
+                      key={skill.id}
+                      onClick={() => setSelectedSkillId(isSelected ? '' : skill.id)}
+                      className={cn(
+                        "w-full flex items-center gap-3 p-3 text-left hover:bg-muted/50 transition-colors",
+                        isSelected && "bg-primary/10"
+                      )}
+                    >
+                      <Heart className={cn(
+                        "h-4 w-4 transition-colors",
+                        isSelected ? "text-red-500 fill-red-500" : "text-muted-foreground/30"
+                      )} />
+                      <SkillLevelBars level={isSelected ? selectedSkillLevel : 'novice'} size="md" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{skill.name}</p>
+                        <p className="text-xs text-muted-foreground">{category?.label}</p>
                       </div>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Nivel de experiencia</Label>
+                      {isSelected && (
+                        <Badge variant="secondary" className="shrink-0">
+                          Seleccionado
+                        </Badge>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Level Selector - Only show when skill is selected */}
+          {selectedSkillId && (
+            <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
+              <Label className="text-sm font-medium">Nivel de experiencia</Label>
               <div className="flex items-center gap-4">
                 <SkillLevelSelector
                   value={selectedSkillLevel}
                   onChange={setSelectedSkillLevel}
                 />
-                <span className={cn("text-sm", SKILL_LEVELS[selectedSkillLevel].color)}>
+                <span className={cn("text-sm font-medium", SKILL_LEVELS[selectedSkillLevel].color)}>
                   {SKILL_LEVELS[selectedSkillLevel].label}
                 </span>
               </div>
@@ -936,8 +1097,9 @@ export default function ProfilePage() {
                 {SKILL_LEVELS[selectedSkillLevel].description}
               </p>
             </div>
-          </div>
-          <DialogFooter>
+          )}
+
+          <DialogFooter className="mt-2">
             <Button variant="outline" onClick={() => setIsAddSkillModalOpen(false)}>
               Cancelar
             </Button>
@@ -950,7 +1112,7 @@ export default function ProfilePage() {
               ) : (
                 <>
                   <Plus className="mr-2 h-4 w-4" />
-                  Agregar
+                  Agregar Habilidad
                 </>
               )}
             </Button>

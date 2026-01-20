@@ -336,6 +336,38 @@ export type Database = {
           updated_at?: string
         }
       }
+      user_engines: {
+        Row: {
+          id: string
+          user_id: string
+          engine_key: string
+          custom_name: string | null
+          level: 'novice' | 'intermediate' | 'advanced' | 'expert'
+          is_primary: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          engine_key: string
+          custom_name?: string | null
+          level?: 'novice' | 'intermediate' | 'advanced' | 'expert'
+          is_primary?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          engine_key?: string
+          custom_name?: string | null
+          level?: 'novice' | 'intermediate' | 'advanced' | 'expert'
+          is_primary?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }

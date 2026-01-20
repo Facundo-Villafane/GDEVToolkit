@@ -317,6 +317,25 @@ export default function OnboardingPage() {
         if (skillsError) throw skillsError
       }
 
+      // Save engines to user_engines table
+      if (data.preferredEngines.length > 0) {
+        const enginesToInsert = data.preferredEngines.map((engine, index) => ({
+          user_id: user.id,
+          engine_key: engine === 'other' ? 'other' : engine,
+          custom_name: engine === 'other' && data.customEngine ? data.customEngine : null,
+          level: 'intermediate' as const,
+          is_primary: index === 0,
+        }))
+
+        const { error: enginesError } = await supabase
+          .from('user_engines')
+          .upsert(enginesToInsert as never[], { onConflict: 'user_id,engine_key,custom_name' })
+
+        if (enginesError) {
+          console.error('Error saving engines:', enginesError)
+        }
+      }
+
       let xpAmount = 50
       if (data.bio) xpAmount += 10
       if (data.preferredEngines.length > 0) xpAmount += 15

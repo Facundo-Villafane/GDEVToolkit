@@ -86,6 +86,14 @@ interface UserSkill {
   description: string | null
 }
 
+interface UserEngine {
+  id: string
+  engine_key: string
+  custom_name: string | null
+  level: SkillLevelKey
+  is_primary: boolean
+}
+
 interface PortfolioItem {
   id: string
   title: string
@@ -109,8 +117,10 @@ export default function ProfilePage() {
   const { user } = useAuthStore()
 
   const [userSkills, setUserSkills] = useState<UserSkill[]>([])
+  const [userEngines, setUserEngines] = useState<UserEngine[]>([])
   const [isResettingOnboarding, setIsResettingOnboarding] = useState(false)
   const [isLoadingSkills, setIsLoadingSkills] = useState(true)
+  const [isLoadingEngines, setIsLoadingEngines] = useState(true)
 
   // Edit profile modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -142,6 +152,19 @@ export default function ProfilePage() {
   const [skillSearchQuery, setSkillSearchQuery] = useState('')
   const [addSkillSearchQuery, setAddSkillSearchQuery] = useState('')
   const [isDeletingSkill, setIsDeletingSkill] = useState<string | null>(null)
+
+  // Engine modal states
+  const [isEngineModalOpen, setIsEngineModalOpen] = useState(false)
+  const [selectedEngineKey, setSelectedEngineKey] = useState('')
+  const [selectedEngineLevel, setSelectedEngineLevel] = useState<SkillLevelKey>('intermediate')
+  const [customEngineName, setCustomEngineName] = useState('')
+  const [isSavingEngine, setIsSavingEngine] = useState(false)
+  const [isDeletingEngine, setIsDeletingEngine] = useState<string | null>(null)
+
+  // Genre modal states
+  const [isGenreModalOpen, setIsGenreModalOpen] = useState(false)
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([])
+  const [isSavingGenres, setIsSavingGenres] = useState(false)
 
   // Fetch user skills from database
   const fetchUserSkills = async () => {
@@ -178,8 +201,33 @@ export default function ProfilePage() {
     }
   }
 
+  // Fetch user engines from database
+  const fetchUserEngines = async () => {
+    if (!user?.id) return
+
+    setIsLoadingEngines(true)
+    try {
+      const { data, error } = await supabase
+        .from('user_engines')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('is_primary', { ascending: false })
+
+      if (error) throw error
+
+      if (data) {
+        setUserEngines(data as UserEngine[])
+      }
+    } catch (error) {
+      console.error('Error fetching engines:', error)
+    } finally {
+      setIsLoadingEngines(false)
+    }
+  }
+
   useEffect(() => {
     fetchUserSkills()
+    fetchUserEngines()
   }, [user?.id, supabase])
 
   // Fetch available skills for add modal
@@ -377,19 +425,146 @@ export default function ProfilePage() {
     ? getUnaddedSkills().filter(s => s.name.toLowerCase().includes(addSkillSearchQuery.toLowerCase()))
     : getUnaddedSkills()
 
-  // Get user's preferred engines and genres from profile
-  const preferredEngines = profile?.preferredEngine ? [profile.preferredEngine] : []
+  // Add engine handler
+  const handleAddEngine = async () => {
+    if (!user?.id || !selectedEngineKey) {
+      toast.error('Selecciona un motor')
+      return
+    }
+
+    if (selectedEngineKey === 'other' && !customEngineName.trim()) {
+      toast.error('Ingresa el nombre del motor')
+      return
+    }
+
+    // Check if engine already exists
+    const engineExists = userEngines.some(e => {
+      if (selectedEngineKey === 'other') {
+        return e.engine_key === 'other' && e.custom_name === customEngineName.trim()
+      }
+      return e.engine_key === selectedEngineKey
+    })
+
+    if (engineExists) {
+      toast.error('Ya tienes este motor registrado')
+      return
+    }
+
+    setIsSavingEngine(true)
+    try {
+      const { error } = await supabase
+        .from('user_engines')
+        .insert({
+          user_id: user.id,
+          engine_key: selectedEngineKey,
+          custom_name: selectedEngineKey === 'other' ? customEngineName.trim() : null,
+          level: selectedEngineLevel,
+          is_primary: userEngines.length === 0,
+        } as never)
+
+      if (error) throw error
+
+      toast.success('Motor agregado!')
+      setIsEngineModalOpen(false)
+      setSelectedEngineKey('')
+      setSelectedEngineLevel('intermediate')
+      setCustomEngineName('')
+      fetchUserEngines()
+    } catch (error) {
+      console.error('Error adding engine:', error)
+      toast.error('Error al agregar el motor')
+    } finally {
+      setIsSavingEngine(false)
+    }
+  }
+
+  // Delete engine handler
+  const handleDeleteEngine = async (engineId: string) => {
+    if (!user?.id) return
+
+    setIsDeletingEngine(engineId)
+    try {
+      const { error } = await supabase
+        .from('user_engines')
+        .delete()
+        .eq('id', engineId)
+
+      if (error) throw error
+
+      toast.success('Motor eliminado')
+      fetchUserEngines()
+    } catch (error) {
+      console.error('Error deleting engine:', error)
+      toast.error('Error al eliminar el motor')
+    } finally {
+      setIsDeletingEngine(null)
+    }
+  }
+
+  // Get engine display name
+  const getEngineDisplayName = (engine: UserEngine) => {
+    if (engine.engine_key === 'other' && engine.custom_name) {
+      return engine.custom_name
+    }
+    const engineData = GAME_ENGINES[engine.engine_key as GameEngineKey]
+    return engineData?.label || engine.engine_key
+  }
+
+  // Get engines not yet added by user
+  const getUnaddedEngines = () => {
+    const userEngineKeys = userEngines.map(e => e.engine_key)
+    return Object.entries(GAME_ENGINES).filter(([key]) => {
+      // "other" can be added multiple times with different custom names
+      if (key === 'other') return true
+      return !userEngineKeys.includes(key)
+    })
+  }
+
+  // Toggle genre in selection
+  const toggleGenre = (genre: string) => {
+    setSelectedGenres(prev =>
+      prev.includes(genre)
+        ? prev.filter(g => g !== genre)
+        : prev.length < 8 ? [...prev, genre] : prev
+    )
+  }
+
+  // Open genre modal with current genres
+  const openGenreModal = () => {
+    setSelectedGenres(profile?.preferredGenres || [])
+    setIsGenreModalOpen(true)
+  }
+
+  // Save genres
+  const handleSaveGenres = async () => {
+    if (!user?.id) return
+
+    setIsSavingGenres(true)
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          preferred_genres: selectedGenres.length > 0 ? selectedGenres : null,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq('id', user.id)
+
+      if (error) throw error
+
+      toast.success('Géneros actualizados!')
+      setIsGenreModalOpen(false)
+      refreshProfile()
+    } catch (error) {
+      console.error('Error saving genres:', error)
+      toast.error('Error al guardar los géneros')
+    } finally {
+      setIsSavingGenres(false)
+    }
+  }
+
+  // Get user's preferred genres from profile
   const preferredGenres = profile?.preferredGenres || []
   const tagline = (profile as { tagline?: string })?.tagline
-
-  // Parse custom engine display
-  const getEngineDisplay = (engine: string) => {
-    if (engine.startsWith('other:')) {
-      return engine.replace('other:', '')
-    }
-    const engineData = GAME_ENGINES[engine as GameEngineKey]
-    return engineData?.label || engine
-  }
 
   return (
     <div className="space-y-6">
@@ -453,52 +628,131 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Preferences Summary */}
-      {(preferredEngines.length > 0 || preferredGenres.length > 0) && (
-        <Card>
-          <CardHeader>
+      {/* Preferences Summary - Engines with Levels */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Gamepad2 className="h-5 w-5 text-primary" />
               Preferencias de Desarrollo
             </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {preferredEngines.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium text-muted-foreground">Motor preferido</h4>
-                <div className="flex flex-wrap gap-2">
-                  {preferredEngines.map((engine) => {
-                    const isCustom = engine.startsWith('other:')
-                    return (
-                      <Badge key={engine} variant="secondary" className="text-sm py-1 px-3 gap-2">
-                        {!isCustom && <EngineIcon engineKey={engine as GameEngineKey} size={16} />}
-                        {getEngineDisplay(engine)}
-                      </Badge>
-                    )
-                  })}
-                </div>
+            <Button variant="outline" size="sm" onClick={() => setIsEngineModalOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Agregar Motor
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Engines with Levels */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-muted-foreground">Motores de juego</h4>
+            {isLoadingEngines ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : userEngines.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground">
+                  No tienes motores registrados. Agrega los motores que usas y tu nivel de experiencia.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {userEngines.map((engine) => {
+                  const levelInfo = SKILL_LEVELS[engine.level]
+                  const isCustom = engine.engine_key === 'other'
+                  return (
+                    <div
+                      key={engine.id}
+                      className={cn(
+                        "flex items-center gap-3 p-3 rounded-lg border",
+                        engine.is_primary && "border-primary bg-primary/5"
+                      )}
+                    >
+                      <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-muted">
+                        {!isCustom ? (
+                          <EngineIcon engineKey={engine.engine_key as GameEngineKey} size={24} />
+                        ) : (
+                          <Gamepad2 className="h-6 w-6 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm truncate">
+                            {getEngineDisplayName(engine)}
+                          </span>
+                          {engine.is_primary && (
+                            <Badge variant="secondary" className="text-xs">Principal</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <SkillLevelBars level={engine.level} size="md" />
+                          <span className={cn("text-xs", levelInfo.color)}>
+                            {levelInfo.label}
+                          </span>
+                        </div>
+                      </div>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-48" align="end">
+                          <div className="space-y-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full justify-start text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteEngine(engine.id)}
+                              disabled={isDeletingEngine === engine.id}
+                            >
+                              {isDeletingEngine === engine.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="mr-2 h-4 w-4" />
+                              )}
+                              Eliminar
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  )
+                })}
               </div>
             )}
+          </div>
 
-            {preferredGenres.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium text-muted-foreground">Géneros favoritos</h4>
-                <div className="flex flex-wrap gap-2">
-                  {preferredGenres.map((genre) => {
-                    const genreData = GAME_GENRES.find(g => g.value === genre)
-                    return (
-                      <Badge key={genre} variant="outline" className="text-sm py-1 px-3 gap-1">
-                        {genreData && <GenreIcon iconName={genreData.iconName} size={14} />}
-                        {genreData?.label || genre}
-                      </Badge>
-                    )
-                  })}
-                </div>
+          {/* Genres - editable */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-muted-foreground">Géneros favoritos</h4>
+              <Button variant="ghost" size="sm" onClick={openGenreModal}>
+                <Edit2 className="mr-2 h-3 w-3" />
+                Editar
+              </Button>
+            </div>
+            {preferredGenres.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No tienes géneros favoritos. Agrega los que más te gustan.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {preferredGenres.map((genre) => {
+                  const genreData = GAME_GENRES.find(g => g.value === genre)
+                  return (
+                    <Badge key={genre} variant="outline" className="text-sm py-1 px-3 gap-1">
+                      {genreData && <GenreIcon iconName={genreData.iconName} size={14} />}
+                      {genreData?.label || genre}
+                    </Badge>
+                  )
+                })}
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="skills" className="space-y-4">
@@ -1120,6 +1374,175 @@ export default function ProfilePage() {
                 <>
                   <Plus className="mr-2 h-4 w-4" />
                   Agregar Habilidad
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Engine Modal */}
+      <Dialog open={isEngineModalOpen} onOpenChange={(open) => {
+        setIsEngineModalOpen(open)
+        if (!open) {
+          setSelectedEngineKey('')
+          setSelectedEngineLevel('intermediate')
+          setCustomEngineName('')
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Agregar Motor de Juego</DialogTitle>
+            <DialogDescription>
+              Selecciona un motor y tu nivel de experiencia con el.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Engine Selection Grid */}
+          <div className="space-y-4 py-4">
+            <Label>Selecciona un motor</Label>
+            <div className="grid grid-cols-3 gap-3">
+              {getUnaddedEngines().map(([key, engine]) => {
+                const isSelected = selectedEngineKey === key
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setSelectedEngineKey(isSelected ? '' : key)}
+                    className={cn(
+                      "relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all",
+                      "hover:scale-105 hover:shadow-md",
+                      isSelected
+                        ? "border-primary bg-primary/10 shadow-sm"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-2 right-2">
+                        <div className="h-2 w-2 rounded-full bg-primary" />
+                      </div>
+                    )}
+                    <div className="h-8 w-8 mb-2 flex items-center justify-center">
+                      <EngineIcon engineKey={key as GameEngineKey} size={28} />
+                    </div>
+                    <span className="text-xs font-medium text-center">{engine.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Custom engine name input */}
+            {selectedEngineKey === 'other' && (
+              <div className="space-y-2">
+                <Label htmlFor="customEngineName">Nombre del motor</Label>
+                <Input
+                  id="customEngineName"
+                  placeholder="Ej: Phaser, Pygame, Love2D, Defold..."
+                  value={customEngineName}
+                  onChange={(e) => setCustomEngineName(e.target.value)}
+                  maxLength={50}
+                />
+              </div>
+            )}
+
+            {/* Level Selector */}
+            {selectedEngineKey && (
+              <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
+                <Label className="text-sm font-medium">Nivel de experiencia</Label>
+                <div className="flex items-center gap-4">
+                  <SkillLevelSelector
+                    value={selectedEngineLevel}
+                    onChange={setSelectedEngineLevel}
+                  />
+                  <span className={cn("text-sm font-medium", SKILL_LEVELS[selectedEngineLevel].color)}>
+                    {SKILL_LEVELS[selectedEngineLevel].label}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {SKILL_LEVELS[selectedEngineLevel].description}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEngineModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleAddEngine}
+              disabled={isSavingEngine || !selectedEngineKey || (selectedEngineKey === 'other' && !customEngineName.trim())}
+            >
+              {isSavingEngine ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Agregando...
+                </>
+              ) : (
+                <>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Agregar Motor
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Genres Modal */}
+      <Dialog open={isGenreModalOpen} onOpenChange={setIsGenreModalOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Editar Géneros Favoritos</DialogTitle>
+            <DialogDescription>
+              Selecciona hasta 8 géneros de juegos que te gusten.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm text-muted-foreground">
+                {selectedGenres.length}/8 seleccionados
+              </span>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {GAME_GENRES.map((genre) => {
+                const isSelected = selectedGenres.includes(genre.value)
+                return (
+                  <button
+                    key={genre.value}
+                    type="button"
+                    onClick={() => toggleGenre(genre.value)}
+                    className={cn(
+                      "flex flex-col items-center justify-center p-3 rounded-lg border transition-all",
+                      "hover:scale-105",
+                      isSelected
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    <GenreIcon iconName={genre.iconName} size={20} className="mb-1" />
+                    <span className="text-xs font-medium text-center leading-tight">{genre.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsGenreModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveGenres} disabled={isSavingGenres}>
+              {isSavingGenres ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Guardar Géneros
                 </>
               )}
             </Button>

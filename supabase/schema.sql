@@ -76,6 +76,20 @@ CREATE TABLE public.user_skills (
     UNIQUE(user_id, skill_id)
 );
 
+-- Tabla de motores por usuario (con niveles de experiencia)
+CREATE TABLE public.user_engines (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    engine_key VARCHAR(50) NOT NULL, -- 'unity', 'godot', 'unreal', etc.
+    custom_name VARCHAR(100), -- Para motores custom (cuando engine_key = 'other')
+    level skill_level DEFAULT 'intermediate',
+    is_primary BOOLEAN DEFAULT FALSE, -- Motor principal
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE(user_id, engine_key, custom_name)
+);
+
 -- Tabla de historial de XP
 CREATE TABLE public.xp_history (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -396,6 +410,9 @@ CREATE INDEX idx_profiles_xp_level ON public.profiles(xp_level);
 CREATE INDEX idx_user_skills_user ON public.user_skills(user_id);
 CREATE INDEX idx_user_skills_skill ON public.user_skills(skill_id);
 
+CREATE INDEX idx_user_engines_user ON public.user_engines(user_id);
+CREATE INDEX idx_user_engines_engine ON public.user_engines(engine_key);
+
 CREATE INDEX idx_projects_owner ON public.projects(owner_id);
 CREATE INDEX idx_projects_status ON public.projects(status);
 CREATE INDEX idx_projects_slug ON public.projects(slug);
@@ -418,6 +435,7 @@ CREATE INDEX idx_ai_conversations_project ON public.ai_conversations(project_id)
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_skills ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_engines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.xp_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_contexts ENABLE ROW LEVEL SECURITY;
@@ -444,6 +462,13 @@ CREATE POLICY "Skills visibles para todos" ON public.user_skills
     FOR SELECT USING (true);
 
 CREATE POLICY "Usuarios pueden gestionar sus skills" ON public.user_skills
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Policies para user_engines
+CREATE POLICY "Engines visibles para todos" ON public.user_engines
+    FOR SELECT USING (true);
+
+CREATE POLICY "Usuarios pueden gestionar sus engines" ON public.user_engines
     FOR ALL USING (auth.uid() = user_id);
 
 -- Policies para projects

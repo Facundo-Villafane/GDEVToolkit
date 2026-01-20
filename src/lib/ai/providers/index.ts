@@ -212,8 +212,9 @@ export const providerRegistry: Record<AIProviderType, AIProviderConfig> = {
   groq: {
     id: 'groq',
     name: 'Groq',
-    models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
-    defaultModel: 'llama-3.3-70b-versatile',
+    // llama-3.3-70b-specdec soporta structured outputs (json_schema)
+    models: ['llama-3.3-70b-specdec', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
+    defaultModel: 'llama-3.3-70b-specdec',
     isAvailable: groqKeyManager.hasKeys(),
     priority: 1,
     capabilities: {

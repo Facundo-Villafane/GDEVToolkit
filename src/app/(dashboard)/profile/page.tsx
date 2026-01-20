@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Edit2,
@@ -26,6 +26,7 @@ import {
   MoreVertical,
   Trash2,
   Heart,
+  Camera,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -131,6 +132,9 @@ export default function ProfilePage() {
     tagline: '',
     bio: '',
   })
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
 
   // Portfolio modal
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false)
@@ -255,8 +259,50 @@ export default function ProfilePage() {
         tagline: (profile as { tagline?: string }).tagline || '',
         bio: profile.bio || '',
       })
+      setAvatarFile(null)
+      setAvatarPreview(null)
     }
   }, [isEditModalOpen, profile])
+
+  // Handle avatar file change
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('La imagen debe ser menor a 2MB')
+        return
+      }
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string)
+        setAvatarFile(file)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  // Upload avatar to storage
+  const uploadAvatar = async (): Promise<string | null> => {
+    if (!avatarFile || !user?.id) return null
+
+    const fileExt = avatarFile.name.split('.').pop()
+    const fileName = `${user.id}-${Date.now()}.${fileExt}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, avatarFile)
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError)
+      return null
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(fileName)
+
+    return urlData.publicUrl
+  }
 
   const xpProgress = profile ? levelProgress(profile.xpTotal) : 0
   const levelTitle = profile ? getLevelTitle(profile.xpLevel) : ''
@@ -268,6 +314,16 @@ export default function ProfilePage() {
 
     setIsSavingProfile(true)
     try {
+      let newAvatarUrl = profile?.avatarUrl
+
+      // Upload avatar if changed
+      if (avatarFile) {
+        const uploadedUrl = await uploadAvatar()
+        if (uploadedUrl) {
+          newAvatarUrl = uploadedUrl
+        }
+      }
+
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -275,6 +331,7 @@ export default function ProfilePage() {
           display_name: editData.displayName || null,
           tagline: editData.tagline || null,
           bio: editData.bio || null,
+          avatar_url: newAvatarUrl || null,
           updated_at: new Date().toISOString(),
         } as never)
         .eq('id', user.id)
@@ -599,9 +656,8 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
-        <Button variant="outline" onClick={() => setIsEditModalOpen(true)}>
-          <Edit2 className="mr-2 h-4 w-4" />
-          Editar Perfil
+        <Button variant="outline" size="icon" onClick={() => setIsEditModalOpen(true)} title="Editar Perfil">
+          <Edit2 className="h-4 w-4" />
         </Button>
       </div>
 
@@ -728,9 +784,8 @@ export default function ProfilePage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-medium text-muted-foreground">Géneros favoritos</h4>
-              <Button variant="ghost" size="sm" onClick={openGenreModal}>
-                <Edit2 className="mr-2 h-3 w-3" />
-                Editar
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={openGenreModal} title="Editar géneros">
+                <Edit2 className="h-4 w-4" />
               </Button>
             </div>
             {preferredGenres.length === 0 ? (
@@ -1121,10 +1176,52 @@ export default function ProfilePage() {
           <DialogHeader>
             <DialogTitle>Editar Perfil</DialogTitle>
             <DialogDescription>
-              Actualiza tu información personal. El email no puede ser modificado.
+              Actualiza tu información personal.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Avatar Upload */}
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={avatarPreview || profile?.avatarUrl || ''} />
+                  <AvatarFallback className="text-xl">
+                    {profile?.displayName?.[0] || profile?.username?.[0] || '?'}
+                  </AvatarFallback>
+                </Avatar>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
+                >
+                  <Camera className="h-4 w-4" />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium">Foto de perfil</p>
+                <p className="text-xs text-muted-foreground">JPG, PNG. Máx 2MB.</p>
+                {avatarFile && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAvatarFile(null)
+                      setAvatarPreview(null)
+                    }}
+                    className="text-xs text-destructive hover:underline mt-1"
+                  >
+                    Quitar cambio
+                  </button>
+                )}
+              </div>
+            </div>
+            <Separator />
             <div className="space-y-2">
               <Label htmlFor="edit-username">Nombre de usuario</Label>
               <div className="relative">
@@ -1157,7 +1254,7 @@ export default function ProfilePage() {
                 maxLength={60}
               />
               <p className="text-xs text-muted-foreground">
-                Una frase corta que te describa (como en Reddit)
+                Una frase corta que te describa
               </p>
             </div>
             <div className="space-y-2">

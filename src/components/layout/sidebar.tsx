@@ -11,10 +11,13 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
+  Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
+import { useUserStore } from '@/stores/user-store'
 
 const navigation = [
   {
@@ -49,6 +52,8 @@ const navigation = [
 export function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const { profile } = useUserStore()
+  const isAdmin = profile?.role === 'admin'
 
   return (
     <aside
@@ -136,12 +141,50 @@ export function Sidebar() {
         })}
       </nav>
 
+      {/* Admin Section - Solo visible para admins */}
+      {isAdmin && (
+        <div className="border-t p-2 space-y-1">
+          {!collapsed && (
+            <p className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Admin
+            </p>
+          )}
+          <Link
+            href="/skills"
+            className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+              pathname === '/skills'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            )}
+          >
+            <Sparkles className="h-5 w-5 flex-shrink-0" />
+            {!collapsed && <span>Skills</span>}
+          </Link>
+          <Link
+            href="/users"
+            className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+              pathname === '/users'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            )}
+          >
+            <Users className="h-5 w-5 flex-shrink-0" />
+            {!collapsed && <span>Usuarios</span>}
+          </Link>
+        </div>
+      )}
+
       {/* Settings */}
       <div className="border-t p-2">
         <Link
           href="/settings"
           className={cn(
-            'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
+            'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+            pathname === '/settings'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
           )}
         >
           <Settings className="h-5 w-5 flex-shrink-0" />

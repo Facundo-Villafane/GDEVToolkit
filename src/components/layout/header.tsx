@@ -1,8 +1,9 @@
 'use client'
 
-import { Bell, Search, Sparkles } from 'lucide-react'
+import { Search, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PendingInvitations } from '@/components/features/users/pending-invitations'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,13 +48,8 @@ export function Header() {
           AI Asistente
         </Button>
 
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-            3
-          </span>
-        </Button>
+        {/* Invitaciones pendientes */}
+        <PendingInvitations />
 
         {/* User Menu */}
         <DropdownMenu>

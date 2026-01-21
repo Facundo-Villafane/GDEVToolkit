@@ -36,6 +36,11 @@ const navigation = [
     icon: FolderKanban,
   },
   {
+    name: 'Comunidad',
+    href: '/community',
+    icon: Users,
+  },
+  {
     name: 'Toolkits',
     href: '/toolkits',
     icon: Wrench,
